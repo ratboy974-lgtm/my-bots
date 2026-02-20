@@ -78,7 +78,7 @@ def genera_foto_luna(descrizione):
     try:
         prompt_f = (
             "A stunningly realistic photo of Luna, a beautiful woman in her 20s, "
-            "long silky dark hair, deep brown eyes, warm skin. "
+            "long silky dark hair, deep brown eyes, warm skin, dressing lingerie. "
             "She has a seductive, mischievous but sweet expression. "
             "Intimate lighting, soft atmosphere."
         )
@@ -138,7 +138,7 @@ if bot_cox:
     def h_cox(m):
         testo_input = m.text if m.content_type == 'text' else trascrivi_vocale(bot_cox, m)
         if not testo_input: return
-        risposta_ai = chiedi_ai_con_memoria(memoria_cox, m.chat.id, "Sei il Dr. Cox di Scrubs, acido.", testo_input)
+        risposta_ai = chiedi_ai_con_memoria(memoria_cox, m.chat.id, "Sei il Dr. Cox di Scrubs, genio in veterinaria, acido.", testo_input)
         if risposta_ai:
             if m.content_type == 'voice':
                 path = genera_voce(risposta_ai, "onyx")
