@@ -25,17 +25,8 @@ bot_cox = telebot.TeleBot(C_TK) if C_TK else None
 
 # --- FIX PER ERRORE 409 (CONFLITTO) ---
 # Forza Telegram a chiudere le vecchie connessioni (es. Replit)
-if bot_luna:
-    try:
-        bot_luna.remove_webhook()
-        bot_luna.delete_webhook(drop_pending_updates=True)
-    except: pass
-
-if bot_cox:
-    try:
-        bot_cox.remove_webhook()
-        bot_cox.delete_webhook(drop_pending_updates=True)
-    except: pass
+if bot_luna: threading.Thread(target=bot_luna.infinity_polling, daemon=True, kwargs={'timeout': 10, 'long_polling_timeout': 5}).start()
+if bot_cox: threading.Thread(target=bot_cox.infinity_polling, daemon=True, kwargs={'timeout': 10, 'long_polling_timeout': 5}).start()
 
 # --- 2. DATABASE MEMORIA ---
 memoria_luna = {}
