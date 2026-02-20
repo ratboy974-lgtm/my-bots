@@ -24,9 +24,17 @@ bot_luna = telebot.TeleBot(L_TK) if L_TK else None
 bot_cox = telebot.TeleBot(C_TK) if C_TK else None
 
 # --- FIX PER ERRORE 409 (CONFLITTO) ---
-# Forza Telegram a chiudere le vecchie connessioni (es. Replit)
-if bot_luna: threading.Thread(target=bot_luna.infinity_polling, daemon=True, kwargs={'timeout': 10, 'long_polling_timeout': 5}).start()
-if bot_cox: threading.Thread(target=bot_cox.infinity_polling, daemon=True, kwargs={'timeout': 10, 'long_polling_timeout': 5}).start()
+if bot_luna:
+    try:
+        bot_luna.remove_webhook()
+        bot_luna.delete_webhook(drop_pending_updates=True)
+    except: pass
+
+if bot_cox:
+    try:
+        bot_cox.remove_webhook()
+        bot_cox.delete_webhook(drop_pending_updates=True)
+    except: pass
 
 # --- 2. DATABASE MEMORIA ---
 memoria_luna = {}
@@ -142,9 +150,26 @@ if bot_cox:
 
 # --- 6. AVVIO ---
 if __name__ == "__main__":
-    print("--- 🚀 LUNA & COX IN PARTENZA SU RENDER (RESETE DI CONFLITTI ATTIVO) ---")
+    print("--- 🚀 LUNA & COX IN PARTENZA SU RENDER ---")
+    
+    # Avviamo il server Flask per Render
     threading.Thread(target=run_flask, daemon=True).start()
-    if bot_luna: threading.Thread(target=bot_luna.infinity_polling, daemon=True, timeout=10, long_polling_timeout=5).start()
-    if bot_cox: threading.Thread(target=bot_cox.infinity_polling, daemon=True, timeout=10, long_polling_timeout=5).start()
+    
+    # Avviamo i bot (Corretto l'invio dei parametri via kwargs)
+    if bot_luna: 
+        threading.Thread(
+            target=bot_luna.infinity_polling, 
+            daemon=True, 
+            kwargs={'timeout': 20, 'long_polling_timeout': 10}
+        ).start()
+        
+    if bot_cox: 
+        threading.Thread(
+            target=bot_cox.infinity_polling, 
+            daemon=True, 
+            kwargs={'timeout': 20, 'long_polling_timeout': 10}
+        ).start()
+    
+    # Loop infinito per tenere acceso il processo
     while True:
         time.sleep(1)
