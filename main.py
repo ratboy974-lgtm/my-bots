@@ -173,3 +173,9 @@ if __name__ == "__main__":
     # Loop infinito per tenere acceso il processo
     while True:
         time.sleep(1)
+        # Sotto la riga: print("--- 🚀 LUNA & COX IN PARTENZA SU RENDER ---")
+# Aggiungi questo per testare la connessione:
+if bot_luna:
+    print("Test connessione Luna...")
+    # Questo stamperà nei log le info del bot se il token è giusto
+    print(f"Bot Luna collegato come: {bot_luna.get_me().username}")
