@@ -98,15 +98,30 @@ if bot_luna:
         except Exception as e:
             print(f"Errore AI: {e}")
 
-# --- 5. AVVIO ---
+# --- 5. AVVIO AUTOMATICO E RESILIENTE ---
 if __name__ == "__main__":
+    print("--- 🚀 LUNA IS STARTING ---")
+    
     if bot_luna:
+        # 1. Pulizia drastica pre-avvio
         try:
             bot_luna.remove_webhook()
             bot_luna.delete_webhook(drop_pending_updates=True)
-            time.sleep(1)
-        except: pass
-        
+            print("✅ Webhook rimosso e coda pulita.")
+            time.sleep(3) # Pausa vitale: dà tempo a Render di spegnere il vecchio bot
+        except Exception as e:
+            print(f"⚠️ Nota pulizia: {e}")
+
+        # 2. Avvio Server Health Check
         threading.Thread(target=run_flask, daemon=True).start()
-        print("--- 🚀 LUNA IS ONLINE ---")
-        bot_luna.infinity_polling(timeout=20)
+        
+        # 3. Avvio Polling con gestione errori intelligente
+        print("--- 🎙️ LUNA ONLINE E PRONTA ---")
+        
+        # infinity_polling con parametri di recupero
+        bot_luna.infinity_polling(
+            timeout=20, 
+            long_polling_timeout=5,
+            restart_on_change=True,
+            logger_level=40 # Riduce i log inutili, mostra solo errori gravi
+        )
