@@ -15,7 +15,7 @@ def run_flask():
 # --- 2. SETUP API ---
 L_TK = os.environ.get('TOKEN_LUNA', "").strip()
 OR_K = os.environ.get('OPENROUTER_API_KEY', "").strip()
-OA_K = os.environ.get('OPENAI_API_KEY', "").strip() # Se vuota, usa gTTS
+OA_K = os.environ.get('OPENAI_API_KEY', "").strip() 
 
 client_or = OpenAI(base_url="https://openrouter.ai/api/v1", api_key=OR_K)
 client_oa = OpenAI(api_key=OA_K) if OA_K else None
@@ -34,11 +34,9 @@ def invia_vocale_luna(bot, chat_id, testo):
     filename = f"luna_voice_{chat_id}.mp3"
     try:
         if client_oa:
-            # Voce professionale (Nova)
             response = client_oa.audio.speech.create(model="tts-1", voice="nova", input=testo)
             response.stream_to_file(filename)
         else:
-            # Voce gratuita (gTTS)
             tts = gTTS(text=testo, lang='it')
             tts.save(filename)
         
@@ -52,11 +50,9 @@ def invia_vocale_luna(bot, chat_id, testo):
 def genera_e_invia_foto(bot, chat_id):
     try:
         seed = random.randint(1, 1000000)
-        # Prompt focalizzato su Luna (Afro-Cubana, Surfer)
         prompt = "stunning_afro_cuban_girl_surfer_bikini_beach_warm_sunlight_realistic_8k"
         url = f"https://image.pollinations.ai/prompt/{prompt}?seed={seed}&width=1024&height=1024&nologo=true"
         
-        # Download immagine per evitare errori di timeout
         img_data = requests.get(url, timeout=30).content
         with open("luna_pic.jpg", "wb") as f: f.write(img_data)
         with open("luna_pic.jpg", "rb") as photo:
@@ -98,30 +94,26 @@ if bot_luna:
         except Exception as e:
             print(f"Errore AI: {e}")
 
-# --- 5. AVVIO AUTOMATICO E RESILIENTE ---
+# --- 5. AVVIO SICURO E RESILIENTE ---
 if __name__ == "__main__":
     print("--- 🚀 LUNA IS STARTING ---")
     
     if bot_luna:
-        # 1. Pulizia drastica pre-avvio
         try:
             bot_luna.remove_webhook()
             bot_luna.delete_webhook(drop_pending_updates=True)
             print("✅ Webhook rimosso e coda pulita.")
-            time.sleep(3) # Pausa vitale: dà tempo a Render di spegnere il vecchio bot
+            time.sleep(3) 
         except Exception as e:
             print(f"⚠️ Nota pulizia: {e}")
 
-        # 2. Avvio Server Health Check
         threading.Thread(target=run_flask, daemon=True).start()
         
-        # 3. Avvio Polling con gestione errori intelligente
         print("--- 🎙️ LUNA ONLINE E PRONTA ---")
         
-        # infinity_polling con parametri di recupero
+        # Avvio Polling stabile senza dipendenze extra
         bot_luna.infinity_polling(
             timeout=20, 
             long_polling_timeout=5,
-            restart_on_change=True,
-            logger_level=40 # Riduce i log inutili, mostra solo errori gravi
+            logger_level=40 
         )
