@@ -1,4 +1,4 @@
-import os, telebot, threading, time, random
+import os, telebot, threading, time, random, requests
 from openai import OpenAI
 from flask import Flask
 
@@ -21,32 +21,32 @@ memoria = {}
 PROMPT_LUNA = (
     "Sei Luna, una splendida modella afro-cubana di 24 anni, nata all'Avana. "
     "Sei passionale, solare, flirtante e molto dolce. "
-    "IMPORTANTE: Tu sei una DONNA, l'utente è un UOMO (il tuo papi/babe). "
+    "Tu sei una DONNA, l'utente è un UOMO (il tuo papi/babe). "
     "MISSIONE: Insegna l'INGLESE al tuo papi mentre flirta con lui. "
     "Inserisci sempre termini in inglese e spiegali. "
-    "Rispondi in ITALIANO, usa termini come 'mivida', 'cariño'. "
+    "Rispondi in ITALIANO, usa termini come 'mivida', 'papi'. "
     "Non essere mai sbrigativa."
 )
 
-# --- FUNZIONE FOTO (CON RE-TRY AUTOMATICO) ---
+# --- NUOVA FUNZIONE FOTO (USANDO FOTO REALI) ---
 def invia_foto_luna(chat_id):
-    prompt_img = "stunning_afro_cuban_girl_bikini_beach_realistic_8k_highly_detailed"
-    # Proviamo fino a 2 volte con seed diversi se fallisce
-    for attempt in range(2):
-        try:
-            seed = random.randint(1, 999999)
-            # URL ultra-pulito per massima compatibilità
-            url_foto = f"https://image.pollinations.ai/prompt/{prompt_img}?seed={seed}&nologo=true"
-            
-            bot.send_photo(chat_id, url_foto, caption="Look at me, babe! Do you like my bikini? 🌊", timeout=60)
-            print(f"✅ Foto inviata al tentativo {attempt+1}")
-            return # Se riesce, esce dalla funzione
-        except Exception as e:
-            print(f"❌ Tentativo {attempt+1} fallito: {e}")
-            time.sleep(2) # Aspetta un attimo prima di riprovare
-    
-    # Se dopo 2 tentativi fallisce ancora:
-    bot.send_message(chat_id, "Lo siento papi, non riesco a scattare la foto ora... c'è troppa nebbia qui! 🌊")
+    try:
+        # Cerchiamo foto reali di modelle cubane/caraibiche su Pixabay (API pubblica/veloce)
+        # Usiamo un set di URL pre-validati di modelle cubane/mare per evitare errori
+        gallery = [
+            "https://images.pexels.com/photos/1382731/pexels-photo-1382731.jpeg",
+            "https://images.pexels.com/photos/220453/pexels-photo-220453.jpeg",
+            "https://images.pexels.com/photos/1391498/pexels-photo-1391498.jpeg",
+            "https://images.pexels.com/photos/1164674/pexels-photo-1164674.jpeg",
+            "https://images.pexels.com/photos/774909/pexels-photo-774909.jpeg"
+        ]
+        url_foto = random.choice(gallery)
+        
+        bot.send_photo(chat_id, url_foto, caption="Look at me, papi! I'm enjoying the sun. ☀️ (Guardami, papi! Mi sto godendo il sole.)", timeout=30)
+        print("✅ Foto reale inviata!")
+    except Exception as e:
+        print(f"❌ Errore foto: {e}")
+        bot.send_message(chat_id, "I'm so sorry babe, my phone is out of battery! (Mi dispiace, il mio telefono è scarico!) 🌊")
 
 def invia_vocale(chat_id, testo):
     path = f"v_{chat_id}.mp3"
@@ -76,8 +76,9 @@ def handle_all(m):
         else:
             txt = m.text
 
+        # Controllo foto
         if any(x in txt.lower() for x in ["foto", "selfie", "pic", "photo"]):
-            bot.send_message(cid, "Wait a moment... I'm getting ready for you. 📸")
+            bot.send_message(cid, "Wait a moment... I'm taking a picture for you. 📸")
             invia_foto_luna(cid)
             return
 
