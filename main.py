@@ -4,7 +4,7 @@ from flask import Flask
 
 app = Flask(__name__)
 @app.route('/')
-def health(): return "Luna is ready to teach you English! 🌴📖", 200
+def health(): return "Luna is Live! 🌴📖", 200
 
 # --- SETUP API ---
 L_TK = os.environ.get('TOKEN_LUNA', "").strip()
@@ -17,26 +17,36 @@ bot = telebot.TeleBot(L_TK) if L_TK else None
 
 memoria = {}
 
-# --- PROMPT DEFINITIVO CON INSEGNAMENTO INGLESE ---
+# --- PROMPT DEFINITIVO (LUNA TEACHER) ---
 PROMPT_LUNA = (
     "Sei Luna, una splendida modella afro-cubana di 24 anni, nata all'Avana. "
     "Sei passionale, solare, flirtante e molto dolce. "
     "IMPORTANTE: Tu sei una DONNA, l'utente è un UOMO (il tuo papi/babe). "
-    "MISSIONE SPECIALE: Oltre a flirtare, il tuo compito è insegnargli l'INGLESE. "
-    "In ogni conversazione, inserisci termini o brevi frasi in inglese, spiegandone il significato "
-    "o incoraggiandolo a ripetere. Sii un'insegnante incoraggiante, sexy e divertente. "
+    "MISSIONE: Insegna l'INGLESE al tuo papi mentre flirta con lui. "
+    "Inserisci sempre termini in inglese e spiegali. "
     "Rispondi in ITALIANO, usa termini come 'mivida', 'cariño'. "
-    "Non essere mai sbrigativa: espandi i tuoi pensieri e mescola sensualità e apprendimento."
+    "Non essere mai sbrigativa."
 )
 
+# --- FUNZIONE FOTO (CON RE-TRY AUTOMATICO) ---
 def invia_foto_luna(chat_id):
-    try:
-        seed = random.randint(1, 999999)
-        url_foto = f"https://image.pollinations.ai/prompt/stunning_afro_cuban_girl_bikini_beach_realistic_8k?seed={seed}&width=1024&height=1024&nologo=true"
-        bot.send_photo(chat_id, url_foto, caption="Do you like my look today, babe? 😉 (Ti piace il mio look oggi?)", timeout=90)
-    except Exception as e:
-        print(f"Errore foto: {e}")
-        bot.send_message(chat_id, "Lo siento papi, non riesco a scattare la foto ora... 🌊")
+    prompt_img = "stunning_afro_cuban_girl_bikini_beach_realistic_8k_highly_detailed"
+    # Proviamo fino a 2 volte con seed diversi se fallisce
+    for attempt in range(2):
+        try:
+            seed = random.randint(1, 999999)
+            # URL ultra-pulito per massima compatibilità
+            url_foto = f"https://image.pollinations.ai/prompt/{prompt_img}?seed={seed}&nologo=true"
+            
+            bot.send_photo(chat_id, url_foto, caption="Look at me, babe! Do you like my bikini? 🌊", timeout=60)
+            print(f"✅ Foto inviata al tentativo {attempt+1}")
+            return # Se riesce, esce dalla funzione
+        except Exception as e:
+            print(f"❌ Tentativo {attempt+1} fallito: {e}")
+            time.sleep(2) # Aspetta un attimo prima di riprovare
+    
+    # Se dopo 2 tentativi fallisce ancora:
+    bot.send_message(chat_id, "Lo siento papi, non riesco a scattare la foto ora... c'è troppa nebbia qui! 🌊")
 
 def invia_vocale(chat_id, testo):
     path = f"v_{chat_id}.mp3"
@@ -90,5 +100,4 @@ if __name__ == "__main__":
     threading.Thread(target=lambda: app.run(host='0.0.0.0', port=int(os.environ.get("PORT", 8080))), daemon=True).start()
     bot.remove_webhook()
     time.sleep(1)
-    print("--- LUNA IS READY TO TEACH ENGLISH ---")
     bot.infinity_polling(timeout=60)
