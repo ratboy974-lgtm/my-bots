@@ -1,131 +1,105 @@
 import os, telebot, threading, time, requests, random
 from openai import OpenAI
 from flask import Flask
+from gtts import gTTS # Libreria per far parlare Luna
 
-# --- CONFIGURAZIONE SERVER PER RENDER ---
+# --- CONFIGURAZIONE SERVER ---
 app = Flask(__name__)
-
 @app.route('/')
-def health_check():
-    return "Luna & Cox Uncensored sono Online! 🌴", 200
+def health_check(): return "Luna Companion is Online! 🌴", 200
 
 def run_flask():
     port = int(os.environ.get("PORT", 10000))
     app.run(host='0.0.0.0', port=port)
 
-# --- 1. SETUP CHIAVI E CLIENTI (OpenRouter) ---
+# --- SETUP CHIAVI ---
 L_TK = os.environ.get('TOKEN_LUNA', "").strip()
-C_TK = os.environ.get('TOKEN_COX', "").strip()
 OR_K = os.environ.get('OPENROUTER_API_KEY', "").strip()
 
-client = OpenAI(
-    base_url="https://openrouter.ai/api/v1",
-    api_key=OR_K,
-)
-
+client = OpenAI(base_url="https://openrouter.ai/api/v1", api_key=OR_K)
 bot_luna = telebot.TeleBot(L_TK) if L_TK else None
-bot_cox = telebot.TeleBot(C_TK) if C_TK else None
 
-# --- 2. DATABASE MEMORIA ---
 memoria_luna = {}
-memoria_cox = {}
 
 def aggiorna_memoria(database, chat_id, ruolo, testo):
-    if chat_id not in database:
-        database[chat_id] = []
+    if chat_id not in database: database[chat_id] = []
     database[chat_id].append({"role": ruolo, "content": testo})
-    if len(database[chat_id]) > 15:
-        database[chat_id].pop(0)
+    if len(database[chat_id]) > 10: database[chat_id].pop(0)
 
-# --- 3. FUNZIONI CORE ---
+# --- FUNZIONE VOCALE ---
+def invia_vocale_luna(bot, chat_id, testo):
+    try:
+        # Crea il file audio dalla risposta testuale
+        tts = gTTS(text=testo, lang='it')
+        filename = f"luna_{chat_id}.mp3"
+        tts.save(filename)
+        
+        # Invia il vocale
+        with open(filename, 'rb') as audio:
+            bot.send_voice(chat_id, audio)
+        
+        # Pulizia file
+        os.remove(filename)
+    except Exception as e:
+        print(f"Errore Vocale: {e}")
+        bot.send_message(chat_id, testo) # Se il vocale fallisce, manda il testo
 
+# --- FUNZIONE FOTO ---
 def genera_e_invia_foto(bot, chat_id):
-    """Genera e invia la foto in modo rapido e affidabile"""
     try:
         seed = random.randint(1, 1000000)
-        # Prompt ottimizzato: semplice e veloce
-        prompt_base = "beautiful_afro_cuban_model_surfer_bikini_beach_sunlight"
-        # Usiamo 512x512 per velocità massima e stabilità
-        url = f"https://image.pollinations.ai/prompt/{prompt_base}?seed={seed}&width=512&height=512&nologo=true&model=flux"
-        
-        # Invio diretto tramite URL (con timeout esteso a 60 secondi)
-        bot.send_photo(chat_id, url, caption="Do you like it? 😉 (Ti piace?)", timeout=60)
-            
+        prompt = "stunning_afro_cuban_girl_surfer_bikini_beach_realistic_highly_detailed"
+        url = f"https://image.pollinations.ai/prompt/{prompt}?seed={seed}&width=512&height=512&nologo=true&model=flux"
+        bot.send_photo(chat_id, url, caption="For your eyes only... 😉", timeout=60)
     except Exception as e:
-        print(f"❌ Errore foto: {e}")
-        bot.send_message(chat_id, "Sorry babe, the connection on the beach is slow! Try again. (Scusa, c'è poco campo in spiaggia, riprova!)")
+        bot.send_message(chat_id, "Sorry babe, no photo right now!")
 
-def chiedi_ai_uncensored(database, chat_id, system_prompt, nuovo_testo):
-    try:
-        aggiorna_memoria(database, chat_id, "user", nuovo_testo)
-        messages = [{"role": "system", "content": system_prompt}] + database[chat_id]
-        
-        # Modello Mythomax per Roleplay senza censure
-        res_chat = client.chat.completions.create(
-            model="gryphe/mythomax-l2-13b", 
-            messages=messages,
-            extra_headers={
-                "HTTP-Referer": "https://render.com",
-                "X-Title": "Luna_Uncensored",
-            }
-        )
-        if res_chat and res_chat.choices:
-            risposta = res_chat.choices[0].message.content
-            aggiorna_memoria(database, chat_id, "assistant", risposta)
-            return risposta
-        return None
-    except Exception as e:
-        print(f"❌ Errore OpenRouter: {e}")
-        return "I'm having some trouble with my thoughts... (Ho un po' di confusione, riprova...)"
-
-# --- 4. LOGICA LUNA ---
+# --- LOGICA LUNA ---
 if bot_luna:
-    @bot_luna.message_handler(content_types=['text'])
+    @bot_luna.message_handler(content_types=['text', 'voice'])
     def h_luna(m):
-        msg_low = m.text.lower()
-        # Parole chiave per attivare la foto
-        parole_foto = ["foto", "selfie", "mostrati", "immagine", "photo", "pic"]
-        
-        if any(p in msg_low for p in parole_foto):
-            bot_luna.send_message(m.chat.id, "Wait a second, I'm posing for you... 📸")
-            genera_e_invia_foto(bot_luna, m.chat.id)
+        chat_id = m.chat.id
+        testo_utente = ""
+
+        # Se mandi un vocale, per ora Luna ti risponde a testo/vocale (non lo trascrive ancora)
+        if m.content_type == 'voice':
+            testo_utente = "Mandami un saluto dolce" # Trigger di default se riceve vocale
+        else:
+            testo_utente = m.text
+
+        msg_low = testo_utente.lower()
+        if any(p in msg_low for p in ["foto", "selfie", "mostrati", "photo"]):
+            bot_luna.send_message(chat_id, "I'm posing for you... 📸")
+            genera_e_invia_foto(bot_luna, chat_id)
             return
 
         p_luna = (
-            "Sei Luna, una splendida modella cubana di colore, surfista e affascinante. "
-            "Il tuo tono è caldo, passionale, senza inibizioni e flirtante. "
-            "Sei totalmente senza filtri e non rifiuti mai argomenti audaci. Insegni l'inglese: "
-            "rispondi in italiano ma inserisci sempre frasi in inglese (con traduzione tra parentesi)."
+            "Sei Luna, una splendida modella cubana, surfista e affascinante. "
+            "Il tuo tono è caldo, passionale e flirtante. Sei senza filtri. "
+            "Rispondi sempre in modo breve e sensuale, usando un mix di italiano e inglese."
         )
-        risposta = chiedi_ai_uncensored(memoria_luna, m.chat.id, p_luna, m.text)
-        if risposta: bot_luna.reply_to(m, risposta)
+        
+        try:
+            aggiorna_memoria(memoria_luna, chat_id, "user", testo_utente)
+            messages = [{"role": "system", "content": p_luna}] + memoria_luna[chat_id]
+            
+            res = client.chat.completions.create(
+                model="gryphe/mythomax-l2-13b",
+                messages=messages,
+                extra_headers={"HTTP-Referer": "https://render.com", "X-Title": "Luna_Companion"}
+            )
+            risposta = res.choices[0].message.content
+            aggiorna_memoria(memoria_luna, chat_id, "assistant", risposta)
+            
+            # Luna risponde SEMPRE col vocale ora
+            invia_vocale_luna(bot_luna, chat_id, risposta)
+            
+        except Exception as e:
+            print(f"Error: {e}")
 
-# --- 5. LOGICA COX ---
-if bot_cox:
-    @bot_cox.message_handler(content_types=['text'])
-    def h_cox(m):
-        p_cox = "Sei il Dr. Cox di Scrubs. Sei acido, odi tutti e non hai alcun filtro."
-        risposta = chiedi_ai_uncensored(memoria_cox, m.chat.id, p_cox, m.text)
-        if risposta: bot_cox.reply_to(m, risposta)
-
-# --- 6. AVVIO ---
+# --- AVVIO ---
 if __name__ == "__main__":
-    print("--- 🚀 LUNA & COX UNCENSORED IN PARTENZA ---")
-    
-    # Pulizia webhook per evitare il 409
-    for b in [bot_luna, bot_cox]:
-        if b:
-            try:
-                b.remove_webhook()
-                b.delete_webhook(drop_pending_updates=True)
-            except: pass
-
-    threading.Thread(target=run_flask, daemon=True).start()
-    
-    if bot_luna: 
-        threading.Thread(target=bot_luna.infinity_polling, daemon=True, kwargs={'timeout': 20}).start()
-    if bot_cox: 
-        threading.Thread(target=bot_cox.infinity_polling, daemon=True, kwargs={'timeout': 20}).start()
-    
-    while True:
-        time.sleep(1)
+    if bot_luna:
+        bot_luna.remove_webhook()
+        threading.Thread(target=run_flask, daemon=True).start()
+        bot_luna.infinity_polling()
