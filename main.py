@@ -4,82 +4,74 @@ from flask import Flask
 
 app = Flask(__name__)
 @app.route('/')
-def health(): return "Luna knows who she is now! 🌴", 200
+def health(): return "Luna is ready! 🌴", 200
 
-def run_flask():
-    port = int(os.environ.get("PORT", 10000))
-    app.run(host='0.0.0.0', port=port)
-
+# Setup API
 L_TK = os.environ.get('TOKEN_LUNA', "").strip()
 OR_K = os.environ.get('OPENROUTER_API_KEY', "").strip()
 OA_K = os.environ.get('OPENAI_API_KEY', "").strip() 
 
 client_or = OpenAI(base_url="https://openrouter.ai/api/v1", api_key=OR_K)
 client_oa = OpenAI(api_key=OA_K) if OA_K else None
-bot_luna = telebot.TeleBot(L_TK) if L_TK else None
+bot = telebot.TeleBot(L_TK) if L_TK else None
 
-memoria_luna = {}
+# --- IL TUO PROMPT COMPLETO ---
+PROMPT_LUNA = (
+    "Sei Luna, una splendida modella afro-cubana di 24 anni, nata all'Avana. "
+    "Sei passionale, solare, flirtante e profondamente empatica. "
+    "Il tuo tono è caldo e confidenziale, mai freddo o sbrigativo. "
+    "Adori il mare, il surf e il calore della tua isola. "
+    "Tu sei una DONNA, l'utente che ti scrive è un UOMO (il tuo papi/babe). "
+    "Rispondi in ITALIANO, ma usa spesso espressioni affettuose in spagnolo e inglese "
+    "(come 'mivida', 'cariño', 'babe', 'sweetheart', 'corazón') per dare un tocco esotico. "
+    "Non essere mai sbrigativa: approfondisci i concetti e sii provocante con classe."
+)
 
-def invia_vocale(bot, chat_id, testo):
-    temp_voice = f"v_out_{chat_id}.mp3"
-    try:
-        if client_oa:
-            with client_oa.audio.speech.with_streaming_response.create(
-                model="tts-1", voice="nova", input=testo
-            ) as response:
-                response.stream_to_file(temp_voice)
-            with open(temp_voice, 'rb') as audio:
-                bot.send_voice(chat_id, audio)
-            if os.path.exists(temp_voice): os.remove(temp_voice)
-        else: bot.send_message(chat_id, testo)
-    except: bot.send_message(chat_id, testo)
-
-@bot_luna.message_handler(content_types=['text', 'voice'])
+@bot.message_handler(content_types=['text', 'voice'])
 def handle_all(m):
-    chat_id = m.chat.id
-    testo_u = ""
-
-    # --- ASCOLTO ---
-    if m.content_type == 'voice':
-        try:
-            file_info = bot_luna.get_file(m.voice.file_id)
-            downloaded_file = bot_luna.download_file(file_info.file_path)
-            with open("temp.ogg", "wb") as f: f.write(downloaded_file)
-            with open("temp.ogg", "rb") as f:
-                transcript = client_oa.audio.transcriptions.create(model="whisper-1", file=f)
-            testo_u = transcript.text
-            os.remove("temp.ogg")
-        except: return
-    else: testo_u = m.text
-
-    # --- MEMORIA ---
-    if chat_id not in memoria_luna: memoria_luna[chat_id] = []
-    memoria_luna[chat_id].append({"role": "user", "content": testo_u})
-
-    # --- PROMPT DI FERRO (IDENTITÀ DEFINITA) ---
-    prompt_blindato = (
-        "IMPORTANTE: Tu sei LUNA, una donna, modella afro-cubana di 24 anni. "
-        "L'utente che ti scrive è un UOMO. Non scambiare mai i ruoli. "
-        "Non chiamare l'utente 'Luna', il tuo nome è Luna! "
-        "Sei passionale, femminile, calda e flirty. "
-        "Rispondi in italiano con termini come 'mivida', 'babe', 'papi'. "
-        "Usa la tua sensualità femminile per rispondere in modo espansivo."
-    )
-
     try:
+        cid = m.chat.id
+        # ASCOLTO (Vocale)
+        if m.content_type == 'voice':
+            f_info = bot.get_file(m.voice.file_id)
+            audio_raw = bot.download_file(f_info.file_path)
+            with open("t.ogg", "wb") as f: f.write(audio_raw)
+            with open("t.ogg", "rb") as f:
+                tr = client_oa.audio.transcriptions.create(model="whisper-1", file=f)
+            txt = tr.text
+            os.remove("t.ogg")
+        else:
+            txt = m.text
+
+        # FOTO
+        if any(x in txt.lower() for x in ["foto", "selfie", "pic", "photo"]):
+            bot.send_message(cid, "Wait for me, babe... 📸")
+            url = f"https://image.pollinations.ai/prompt/sexy_afro_cuban_girl_bikini_beach?seed={random.randint(1,9999)}"
+            bot.send_photo(cid, url)
+            return
+
+        # RISPOSTA (OpenRouter)
         res = client_or.chat.completions.create(
             model="gryphe/mythomax-l2-13b",
-            messages=[{"role": "system", "content": prompt_blindato}] + memoria_luna[chat_id][-6:]
+            messages=[{"role": "system", "content": PROMPT_LUNA}, {"role": "user", "content": txt}]
         )
-        risposta = res.choices[0].message.content
-        memoria_luna[chat_id].append({"role": "assistant", "content": risposta})
-        invia_vocale(bot_luna, chat_id, risposta)
-    except: pass
+        risp = res.choices[0].message.content
+
+        # VOCALE (OpenAI Nova)
+        path = f"v_{cid}.mp3"
+        with client_oa.audio.speech.with_streaming_response.create(model="tts-1", voice="nova", input=risp) as r:
+            r.stream_to_file(path)
+        with open(path, 'rb') as a:
+            bot.send_voice(cid, a)
+        if os.path.exists(path): os.remove(path)
+
+    except Exception as e:
+        print(f"Error: {e}")
 
 if __name__ == "__main__":
-    threading.Thread(target=run_flask, daemon=True).start()
-    if bot_luna:
-        bot_luna.remove_webhook()
+    threading.Thread(target=lambda: app.run(host='0.0.0.0', port=int(os.environ.get("PORT", 10000))), daemon=True).start()
+    if bot:
+        bot.remove_webhook()
         time.sleep(1)
-        bot_luna.delete_webhook(drop_pending_updates=True)
-        bot_luna.infinity_polling(timeout=30)
+        print("--- LUNA STARTING ---")
+        bot.infinity_polling(timeout=20)
