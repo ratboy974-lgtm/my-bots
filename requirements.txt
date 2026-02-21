@@ -1,5 +1,4 @@
 pyTelegramBotAPI
 openai
-requests
 flask
-gTTS
+requests
