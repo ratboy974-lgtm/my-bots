@@ -1,10 +1,10 @@
-import os, telebot, threading, time, random, requests
+import os, telebot, threading, time, random
 from openai import OpenAI
 from flask import Flask
 
 app = Flask(__name__)
 @app.route('/')
-def health(): return "Luna is Live! 🌴📖", 200
+def health(): return "Luna is Live & Teaching! 🌴", 200
 
 # --- SETUP API ---
 L_TK = os.environ.get('TOKEN_LUNA', "").strip()
@@ -17,36 +17,32 @@ bot = telebot.TeleBot(L_TK) if L_TK else None
 
 memoria = {}
 
-# --- PROMPT DEFINITIVO (LUNA TEACHER) ---
 PROMPT_LUNA = (
-    "Sei Luna, una splendida modella afro-cubana di 24 anni, nata all'Avana. "
-    "Sei passionale, solare, flirtante e molto dolce. "
-    "Tu sei una DONNA, l'utente è un UOMO (il tuo papi/babe). "
-    "MISSIONE: Insegna l'INGLESE al tuo papi mentre flirta con lui. "
-    "Inserisci sempre termini in inglese e spiegali. "
-    "Rispondi in ITALIANO, usa termini come 'mivida', 'papi'. "
-    "Non essere mai sbrigativa."
+    "Sei Luna, modella afro-cubana di 24 anni. Sei la teacher di inglese del tuo papi. "
+    "Sei passionale, flirtante e dolce. Rispondi in italiano ma inserisci sempre frasi in inglese spiegandole. "
+    "Tu sei la DONNA, lui è l'UOMO. Non scambiare i ruoli."
 )
 
-# --- NUOVA FUNZIONE FOTO (USANDO FOTO REALI) ---
-def invia_foto_luna(chat_id):
+# --- FUNZIONE FOTO MULTI-SCOPO (SELFIE E CUBA) ---
+def invia_foto_dinamica(chat_id, richiesta):
     try:
-        # Cerchiamo foto reali di modelle cubane/caraibiche su Pixabay (API pubblica/veloce)
-        # Usiamo un set di URL pre-validati di modelle cubane/mare per evitare errori
-        gallery = [
-            "https://images.pexels.com/photos/1382731/pexels-photo-1382731.jpeg",
-            "https://images.pexels.com/photos/220453/pexels-photo-220453.jpeg",
-            "https://images.pexels.com/photos/1391498/pexels-photo-1391498.jpeg",
-            "https://images.pexels.com/photos/1164674/pexels-photo-1164674.jpeg",
-            "https://images.pexels.com/photos/774909/pexels-photo-774909.jpeg"
-        ]
-        url_foto = random.choice(gallery)
+        # Se l'utente chiede di Cuba, cerchiamo paesaggi, altrimenti selfie di Luna
+        if "cuba" in richiesta.lower() or "avana" in richiesta.lower():
+            keyword = "cuba,havana,beach"
+            caption = "Look at my island, babe! Isn't it beautiful? 🌴 (Guarda la mia isola, babe! Non è bellissima?)"
+        else:
+            keyword = "latina,girl,beach,model"
+            caption = "Do you like my look today? I'm waiting for you! 🌊 (Ti piace il mio look oggi? Ti sto aspettando!)"
+
+        # Usiamo Unsplash Source: velocissimo e affidabile
+        seed = random.randint(1, 1000)
+        url_foto = f"https://source.unsplash.com/featured/?{keyword}&sig={seed}"
         
-        bot.send_photo(chat_id, url_foto, caption="Look at me, papi! I'm enjoying the sun. ☀️ (Guardami, papi! Mi sto godendo il sole.)", timeout=30)
-        print("✅ Foto reale inviata!")
+        bot.send_photo(chat_id, url_foto, caption=caption, timeout=30)
+        print(f"✅ Foto inviata per: {keyword}")
     except Exception as e:
         print(f"❌ Errore foto: {e}")
-        bot.send_message(chat_id, "I'm so sorry babe, my phone is out of battery! (Mi dispiace, il mio telefono è scarico!) 🌊")
+        bot.send_message(chat_id, "I tried to take a photo but the sun is too strong! ☀️ (Ho provato a fare una foto ma il sole è troppo forte!)")
 
 def invia_vocale(chat_id, testo):
     path = f"v_{chat_id}.mp3"
@@ -65,6 +61,7 @@ def invia_vocale(chat_id, testo):
 def handle_all(m):
     cid = m.chat.id
     try:
+        # Trascrizione vocale
         if m.content_type == 'voice':
             f_info = bot.get_file(m.voice.file_id)
             audio_raw = bot.download_file(f_info.file_path)
@@ -76,12 +73,14 @@ def handle_all(m):
         else:
             txt = m.text
 
-        # Controllo foto
-        if any(x in txt.lower() for x in ["foto", "selfie", "pic", "photo"]):
-            bot.send_message(cid, "Wait a moment... I'm taking a picture for you. 📸")
-            invia_foto_luna(cid)
+        # --- TRIGGER FOTO POTENZIATO ---
+        parole_chiave_foto = ["foto", "selfie", "pic", "photo", "immagine", "mostrami", "show me"]
+        if any(x in txt.lower() for x in parole_chiave_foto):
+            bot.send_message(cid, "Sure babe! Give me a second... 📸")
+            invia_foto_dinamica(cid, txt)
             return
 
+        # Risposta AI
         if cid not in memoria: memoria[cid] = []
         memoria[cid].append({"role": "user", "content": txt})
         
@@ -89,10 +88,10 @@ def handle_all(m):
             model="gryphe/mythomax-l2-13b",
             messages=[{"role": "system", "content": PROMPT_LUNA}] + memoria[cid][-6:]
         )
-        risp = res.choices[0].message.content
-        memoria[cid].append({"role": "assistant", "content": risp})
+        risposta = res.choices[0].message.content
+        memoria[cid].append({"role": "assistant", "content": risposta})
         
-        invia_vocale(cid, risp)
+        invia_vocale(cid, risposta)
 
     except Exception as e:
         print(f"Errore: {e}")
