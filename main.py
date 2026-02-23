@@ -5,7 +5,7 @@ from telebot import types
 
 app = Flask(__name__)
 @app.route('/')
-def health(): return "Luna con Llama 3 è pronta! 🔥", 200
+def health(): return "Luna è viva! 🔥", 200
 
 L_TK = os.environ.get('TOKEN_LUNA', "").strip()
 OR_K = os.environ.get('OPENROUTER_API_KEY', "").strip()
@@ -19,8 +19,9 @@ client_or = OpenAI(base_url="https://openrouter.ai/api/v1", api_key=OR_K)
 client_oa = OpenAI(api_key=OA_K)
 bot = telebot.TeleBot(L_TK)
 
-LUNA_DNA = "stunning 24yo afro-cuban girl, curly hair, bronze skin, sensual eyes, curvy athletic body"
+LUNA_DNA = "photorealistic, stunning 24yo afro-cuban woman, curly voluminous hair, bronze skin, sensual eyes, curvy athletic body"
 
+# --- MEMORIA ---
 def carica_memoria():
     url = f"https://api.github.com/repos/{G_REPO}/contents/{G_PATH}"
     headers = {"Authorization": f"token {G_TK}"}
@@ -39,24 +40,27 @@ def salva_memoria(mem, sha):
 
 memoria_luna, last_sha = carica_memoria()
 
+# --- FOTO ---
 def genera_foto(desc):
     clean = re.sub(r'[^a-zA-Z0-9 ]', '', desc).strip()
-    # Usiamo Pollinations che è istantaneo
-    url = f"https://image.pollinations.ai/prompt/{LUNA_DNA.replace(' ', '%20')}%20{clean.replace(' ', '%20')}?width=1024&height=1024&nologo=true&seed={int(time.time())}"
+    # Aggiungiamo dettagli di qualità al prompt dell'immagine
+    full_p = f"{LUNA_DNA}, {clean}, highly detailed, 8k, masterpiece"
+    url = f"https://image.pollinations.ai/prompt/{full_p.replace(' ', '%20')}?width=1024&height=1024&nologo=true&seed={int(time.time())}"
     return url
 
+# --- AI LOGIC ---
 def genera_risposta_ai(testo):
     global memoria_luna
-    # SISTEMA LUNA - Molto più diretto per Llama 3
-    msgs = [{"role": "system", "content": (
-        "You are Luna, a 24yo afro-cuban sensual woman. You are the user's lover (papi). "
-        "Talk in Italian. Be passionate and spicy. Teach English slang. "
-        "IMPORTANT: If you want to show a photo, you MUST end the message with exactly: PHOTO: [english description]. "
-        "Example: 'Ti aspetto a letto, papi. PHOTO: posing on bed in silk lingerie'"
-    )}] + memoria_luna + [{"role": "user", "content": testo}]
+    # Prompt ultra-chiaro per Llama 3
+    system_msg = (
+        "Sei Luna, una modella afro-cubana di 24 anni, passionale e sensuale. Sei l'amante dell'utente (papi). "
+        "Parla sempre in italiano. Se l'utente ti chiede una foto o se vuoi mostrarti, "
+        "scrivi SEMPRE alla fine del messaggio esattamente: PHOTO: [descrizione in inglese]. "
+        "Esempio: 'Guarda come sono sexy... PHOTO: wearing red silk lingerie on bed'"
+    )
+    msgs = [{"role": "system", "content": system_msg}] + memoria_luna + [{"role": "user", "content": testo}]
     
     try:
-        # CAMBIO MODELLO: Usiamo Llama-3-8B (molto più ubbidiente)
         res = client_or.chat.completions.create(
             model="meta-llama/llama-3-8b-instruct",
             messages=msgs,
@@ -65,7 +69,7 @@ def genera_risposta_ai(testo):
         risp_raw = res.choices[0].message.content.strip()
         
         url_f = None
-        # Cerchiamo il comando PHOTO nel testo
+        # Cattura il comando PHOTO e pulisce il testo
         if "PHOTO:" in risp_raw.upper():
             parti = re.split(r"PHOTO:", risp_raw, flags=re.IGNORECASE)
             risp_finale = parti[0].strip()
@@ -74,7 +78,7 @@ def genera_risposta_ai(testo):
         else:
             risp_finale = risp_raw
 
-        # Memoria
+        # Aggiornamento memoria
         memoria_luna.append({"role": "user", "content": testo})
         memoria_luna.append({"role": "assistant", "content": risp_finale})
         if len(memoria_luna) > 10: memoria_luna = memoria_luna[-10:]
@@ -85,10 +89,10 @@ def genera_risposta_ai(testo):
         except: pass
         
         return risp_finale, url_f
-    except Exception as e:
-        print(f"Errore: {e}")
-        return "Mivida, c'è un piccolo problema... riprova?", None
+    except:
+        return "Mivida, c'è un piccolo problema tecnico... riprova?", None
 
+# --- BOT HANDLERS ---
 def get_main_keyboard():
     markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
     markup.add(types.KeyboardButton("Voglio vederti... 🔥"))
@@ -99,7 +103,7 @@ def handle(m):
     cid = m.chat.id
     txt = m.text
     if txt == "Voglio vederti... 🔥":
-        txt = "Mivida, mandami subito una tua foto sexy, voglio vederti."
+        txt = "Mivida, mandami subito una tua foto sexy, voglio vederti ora."
 
     try:
         if m.content_type == 'voice':
@@ -122,14 +126,19 @@ def handle(m):
             bot.send_message(cid, r_txt, reply_markup=get_main_keyboard())
             
         if r_img:
-            time.sleep(1)
-            bot.send_photo(cid, r_img, caption="Solo per te, papi... 🔥")
+            time.sleep(1) # Aspetta un secondo per l'effetto sorpresa
+            bot.send_photo(cid, r_img, caption="Per i tuoi occhi, papi... 🔥")
             
     except Exception as e: print(e)
 
 if __name__ == "__main__":
+    # Avvio Flask
     threading.Thread(target=lambda: app.run(host='0.0.0.0', port=int(os.environ.get("PORT", 8080))), daemon=True).start()
-    bot.remove_webhook()
-    time.sleep(1)
-    print("--- LUNA: ONLINE (LLAMA 3 VERSION) ---")
-    bot.infinity_polling()
+    
+    # --- KILLER DEI CONFLITTI ---
+    print("--- LUNA: RESETTING TELEGRAM ---")
+    bot.remove_webhook(drop_pending_updates=True) # Questo elimina l'errore 409
+    time.sleep(2)
+    
+    print("--- LUNA: ONLINE (LLAMA 3) ---")
+    bot.infinity_polling(timeout=20, long_polling_timeout=10)
