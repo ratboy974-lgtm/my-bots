@@ -1,1 +1,10 @@
-[]
+[
+  {
+    "role": "user",
+    "content": "Mandami selfie"
+  },
+  {
+    "role": "assistant",
+    "content": ""
+  }
+]
