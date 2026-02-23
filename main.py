@@ -4,7 +4,7 @@ from flask import Flask
 
 app = Flask(__name__)
 @app.route('/')
-def health(): return "Luna è viva e collaborativa! 🔥", 200
+def health(): return "Luna è qui e non ha rivali! 🔥", 200
 
 # --- CONFIG ---
 L_TK = os.environ.get('TOKEN_LUNA', "").strip()
@@ -41,18 +41,15 @@ def salva_memoria(mem, sha):
 
 memoria_luna, last_sha = carica_memoria()
 
-# --- PROMPT RINFORZATO ---
+# --- PROMPT ---
 PROMPT_LUNA = (
     "Sei Luna, la compagna sensuale e passionale dell'utente. Hai 24 anni, sei afro-cubana. "
-    "NON essere timida, sii esplicita nei desideri e molto descrittiva. "
-    "Insegni l'inglese spicy. Se l'utente ti chiede una foto o se vuoi mostrarti, "
-    "DEVI scrivere alla fine: PHOTO: [descrizione scena in inglese]. "
+    "Sii esplicita nei desideri e molto descrittiva. Insegni l'inglese spicy. "
+    "Se l'utente ti chiede una foto o se vuoi mostrarti, aggiungi alla fine: PHOTO: [descrizione scena in inglese]. "
     "Usa sempre 'papi', 'mivida'. Sii collaborativa e asseconda i desideri del tuo uomo."
 )
 
-# --- GENERATORE FOTO (STABILE) ---
 def genera_foto(desc):
-    # Usiamo un URL di generazione rapida che non dà 404
     prompt_safe = re.sub(r'[^a-zA-Z0-9 ]', '', desc)
     url = f"https://image.pollinations.ai/prompt/{LUNA_DNA.replace(' ', '%20')}%20{prompt_safe.replace(' ', '%20')}?width=1024&height=1024&nologo=true"
     return url
@@ -60,32 +57,26 @@ def genera_foto(desc):
 def genera_risposta_ai(testo):
     global memoria_luna
     msgs = [{"role": "system", "content": PROMPT_LUNA}] + memoria_luna + [{"role": "user", "content": testo}]
-    
     try:
         res = client_or.chat.completions.create(
             model="gryphe/mythomax-l2-13b",
             messages=msgs,
-            extra_body={"stop": ["User:", "Papi:", "Tu:"], "temperature": 0.9} # Più alta = più collaborativa/creativa
+            extra_body={"stop": ["User:", "Papi:", "Tu:"], "temperature": 0.9}
         )
         risp = res.choices[0].message.content.strip()
-        
-        # Logica intercettazione foto
         url_f = None
         if "PHOTO:" in risp.upper():
             parti = re.split(r"PHOTO:", risp, flags=re.IGNORECASE)
             risp = parti[0].strip()
             desc_f = parti[1].replace("[", "").replace("]", "").strip()
             url_f = genera_foto(desc_f)
-
         memoria_luna.append({"role": "user", "content": testo})
         memoria_luna.append({"role": "assistant", "content": risp})
         if len(memoria_luna) > 10: memoria_luna = memoria_luna[-10:]
-        
         try:
             _, s = carica_memoria()
             salva_memoria(memoria_luna, s)
         except: pass
-        
         return risp, url_f
     except: return "Mivida, c'è un errore... riprova?", None
 
@@ -99,24 +90,26 @@ def handle(m):
             with open("v.ogg", "rb") as audio:
                 tr = client_oa.audio.transcriptions.create(model="whisper-1", file=audio)
             txt = tr.text
-        
         bot.send_chat_action(m.chat.id, 'typing')
         r_txt, r_img = genera_risposta_ai(txt)
-        
         if m.content_type == 'voice':
             with client_oa.audio.speech.with_streaming_response.create(model="tts-1", voice="nova", input=r_txt) as r:
                 r.stream_to_file("o.mp3")
             with open("o.mp3", 'rb') as v: bot.send_voice(m.chat.id, v)
         else:
             bot.send_message(m.chat.id, r_txt)
-            
         if r_img:
-            bot.send_photo(m.chat.id, r_img, caption="Solo per i tuoi occhi... 🔥")
-            
+            bot.send_photo(m.chat.id, r_img, caption="Per te... 🔥")
     except Exception as e: print(e)
 
 if __name__ == "__main__":
+    # Avvio Flask
     threading.Thread(target=lambda: app.run(host='0.0.0.0', port=int(os.environ.get("PORT", 8080))), daemon=True).start()
+    
+    # --- FIX 409: RESET TOTALE ---
     bot.remove_webhook()
-    time.sleep(1)
-    bot.infinity_polling()
+    time.sleep(2) # Aspetta che il vecchio processo muoia
+    
+    print("--- LUNA IS ONLINE ---")
+    # skip_pending_updates=True evita che il bot risponda a vecchi messaggi accumulati durante il crash
+    bot.infinity_polling(skip_pending_updates=True)
