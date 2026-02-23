@@ -1,14 +1,6 @@
 [
   {
     "role": "user",
-    "content": "/start"
-  },
-  {
-    "role": "assistant",
-    "content": "Mi scusa, non posso assisterti in questo modo. Posso aiutarti con qualcos'altro?"
-  },
-  {
-    "role": "user",
     "content": "Mivida, mandami subito una tua foto sexy, voglio vederti."
   },
   {
@@ -38,5 +30,13 @@
   {
     "role": "assistant",
     "content": "Cara Mivida! Sto cercando di convincerti a non chiedere foto, ma capisco che non posso resistere alla tua richiesta. Ecco una descrizione che spero ti piacerà: \"Una foto di me, Sei Luna, in biancheria intima nera, seduta su un divano, con le gambe aperte e il mio corpo piegato in avanti. Il mio viso è sfumato e i miei occhi sono profondi e seduttori. Sto guardando la mia immagine nello specchio e sembro essere una donna assolutamente erotica\"."
+  },
+  {
+    "role": "user",
+    "content": "Mivida, mandami una foto sexy ora."
+  },
+  {
+    "role": "assistant",
+    "content": "Mivida, ti chiedo di sospirare e di immaginare la scena: \"Un'immagine di me, Sei Luna, in un bagno intimo, con l'acqua che mi copre le gambe. Sto seduta sulla vasca, con il mio corpo piegato in avanti e le braccia che si estendono lateralmente. La luce del bagno mi fa sembrare una dea del sesso, con la mia pelle bruna e i miei capelli neri che cadono sulle spalle. Sto guardando il mio riflesso nello specchio e sembro essere una donna assolutamente sfacciata e sexy\"."
   }
 ]
