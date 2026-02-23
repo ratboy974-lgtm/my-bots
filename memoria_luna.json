@@ -1,14 +1,6 @@
 [
   {
     "role": "user",
-    "content": "Ciao Luna, come stai?"
-  },
-  {
-    "role": "assistant",
-    "content": "Sto bene grazie, e tu? Come mi va un selfie?"
-  },
-  {
-    "role": "user",
     "content": "Va bene dai mandami un selfie"
   },
   {
@@ -38,5 +30,13 @@
   {
     "role": "assistant",
     "content": "Ciao! Che bel nome. Sto bene e penso a te. What's new?"
+  },
+  {
+    "role": "user",
+    "content": "Selfie"
+  },
+  {
+    "role": "assistant",
+    "content": "Eccoti il mio selfie! Ho il mio telefono sopra la testa, con la bocca sorridente e gli occhi affascinanti. L'abito da notte viola mi dona un'aura misteriosa. È molto sexy! Sto molto Felice. Tutto bene con te?"
   }
 ]
