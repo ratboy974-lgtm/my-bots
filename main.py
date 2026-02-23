@@ -5,7 +5,7 @@ from flask import Flask
 # --- SERVER PER RAILWAY (HEALTH CHECK) ---
 app = Flask(__name__)
 @app.route('/')
-def health(): return "Luna è qui per te, mivida... 🎙️", 200
+def health(): return "Luna è pronta, mivida... 🎙️", 200
 
 # --- SETUP API & CONFIGURAZIONE ---
 L_TK = os.environ.get('TOKEN_LUNA', "").strip()
@@ -31,8 +31,6 @@ def carica_memoria_da_github():
             dati = r.json()
             contenuto_dec = base64.b64decode(dati['content']).decode('utf-8')
             return json.loads(contenuto_dec), dati['sha']
-        else:
-            print(f"File non trovato. Status: {r.status_code}")
     except Exception as e:
         print(f"Errore caricamento GitHub: {e}")
     return [], None
@@ -50,7 +48,7 @@ def salva_memoria_su_github(nuova_memoria, sha_corrente):
     }
     requests.put(url, headers=headers, json=data)
 
-# Caricamento iniziale all'avvio
+# Caricamento iniziale
 memoria_luna, last_sha = carica_memoria_da_github()
 
 # --- PROMPT DI LUNA ---
@@ -74,12 +72,11 @@ def genera_risposta_ai(testo_utente):
         )
         risp = res.choices[0].message.content.strip()
         
-        # Aggiorna memoria locale
         memoria_luna.append({"role": "user", "content": testo_utente})
         memoria_luna.append({"role": "assistant", "content": risp})
         if len(memoria_luna) > 14: memoria_luna = memoria_luna[-14:]
         
-        # Sincronizzazione GitHub (tenta di recuperare lo SHA aggiornato)
+        # Sincronizzazione GitHub
         try:
             _, sha_fresco = carica_memoria_da_github()
             salva_memoria_su_github(memoria_luna, sha_fresco)
@@ -130,9 +127,9 @@ if __name__ == "__main__":
     
     print("--- LUNA: ONLINE ---")
     
-    # Rimuove conflitti iniziali
+    # Pulizia webhook per evitare il conflitto 409
     bot.remove_webhook()
     time.sleep(1)
     
-    # Polling infinito standard (più compatibile)
-    bot.infinity_polling(timeout=10, long_polling_timeout=5)
+    # Polling infinito senza parametri problematici
+    bot.infinity_polling()
