@@ -5,69 +5,69 @@ from telebot import types
 
 app = Flask(__name__)
 @app.route('/')
-def health(): return "Luna Online 🔥", 200
+def health(): return "Luna è qui... 🔥", 200
 
-# --- CONFIG ---
 L_TK = os.environ.get('TOKEN_LUNA', "").strip()
 OR_K = os.environ.get('OPENROUTER_API_KEY', "").strip()
-
-# LOG DI CONTROLLO (Vedi questo nei log di Railway)
-print(f"DEBUG: Chiave API trovata? {'SI' if OR_K else 'NO'}")
-if OR_K: print(f"DEBUG: Inizio chiave: {OR_K[:8]}...")
 
 client_or = OpenAI(base_url="https://openrouter.ai/api/v1", api_key=OR_K)
 bot = telebot.TeleBot(L_TK, threaded=False)
 
-LUNA_DNA = "stunning 24yo afro-cuban woman, curly hair, bronze skin"
+LUNA_DNA = "stunning 24yo afro-cuban woman, curly voluminous hair, bronze skin, hazel eyes"
 
 def genera_risposta_ai(testo):
     try:
-        # Usiamo Mistral: è il più stabile per i test
+        # Passiamo a Llama 3.1 8B: molto più preciso e meno propenso a testi vuoti
         res = client_or.chat.completions.create(
-            model="mistralai/mistral-7b-instruct", 
+            model="meta-llama/llama-3.1-8b-instruct", 
             messages=[
-                {"role": "system", "content": "Sei Luna. Parla italiano. Se chiedono foto, scrivi ART: [descrizione inglese]."},
+                {"role": "system", "content": "Sei Luna, 24 anni, afro-cubana. Parla italiano in modo sensuale. Se l'utente vuole vederti, scrivi sempre alla fine del messaggio: ART: [english description]."},
                 {"role": "user", "content": testo}
             ],
-            temperature=0.7
+            temperature=0.8
         )
         risp = res.choices[0].message.content.strip()
+        
+        # Se l'AI risponde vuoto, mettiamo un testo di fallback
+        if not risp:
+            risp = "Mivida... a volte resto senza parole a guardarti. ❤️"
+            
         desc_foto = None
         if "ART:" in risp.upper():
             parti = re.split(r"ART:", risp, flags=re.IGNORECASE)
             risp = parti[0].strip()
-            desc_foto = parti[1].strip()
+            desc_foto = parti[1].strip().replace("[", "").replace("]", "")
+        
         return risp, desc_foto
     except Exception as e:
         print(f"ERRORE OPENROUTER: {e}")
-        return None, None
+        return "Mivida, c'è un piccolo problema con le API... riprova? ❤️", None
 
 def invia_foto(cid, desc):
     try:
-        url = f"https://image.pollinations.ai/prompt/{LUNA_DNA.replace(' ', '%20')}%20{desc.replace(' ', '%20')}?nologo=true"
+        full_p = f"{LUNA_DNA}, {desc}, masterpiece, photorealistic, 8k"
+        url = f"https://image.pollinations.ai/prompt/{full_p.replace(' ', '%20')}?nologo=true&seed={int(time.time())}"
+        
         r = requests.get(url, timeout=20)
         if r.status_code == 200:
-            bot.send_photo(cid, io.BytesIO(r.content), caption="Per te... 🔥")
+            bot.send_photo(cid, io.BytesIO(r.content), caption="Solo per te... 🔥")
     except Exception as e:
         print(f"ERRORE FOTO: {e}")
 
 @bot.message_handler(func=lambda m: True)
 def handle(m):
     cid = m.chat.id
+    txt = m.text
+    if txt == "Voglio vederti... 🔥":
+        txt = "Mandami una tua foto sexy ora."
+
     bot.send_chat_action(cid, 'typing')
+    r_txt, d_foto = genera_risposta_ai(txt)
     
-    testo_utente = m.text
-    if testo_utente == "Voglio vederti... 🔥":
-        testo_utente = "Mandami una tua foto artistica."
-
-    r_txt, d_foto = genera_risposta_ai(testo_utente)
-    
-    if r_txt is None:
-        bot.send_message(cid, "Mivida, c'è un errore tecnico con le API. Controlla i log di Railway! ⚠️")
-        return
-
     markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
     markup.add(types.KeyboardButton("Voglio vederti... 🔥"))
+    
+    # Ora r_txt non sarà mai vuoto, quindi bot.send_message non fallirà
     bot.send_message(cid, r_txt, reply_markup=markup)
     
     if d_foto:
@@ -76,6 +76,10 @@ def handle(m):
 
 if __name__ == "__main__":
     threading.Thread(target=lambda: app.run(host='0.0.0.0', port=int(os.environ.get("PORT", 8080))), daemon=True).start()
+    
+    # Pulizia webhook e attesa per evitare il 409
     bot.remove_webhook()
-    time.sleep(2)
+    time.sleep(3)
+    
+    print("--- LUNA V8 ONLINE (LLAMA 3.1) ---")
     bot.infinity_polling()
