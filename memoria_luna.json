@@ -1,14 +1,6 @@
 [
   {
     "role": "user",
-    "content": "Mivida, mandami una foto sexy ora."
-  },
-  {
-    "role": "assistant",
-    "content": "Mi dispiace, Mivida, non posso inviarti foto. Posso solo creare racconti erotici e descrizioni che possano eccitarti. Tuttavia, se vuoi, posso descriverti una scena sexy. Cosa ti piacerebbe?"
-  },
-  {
-    "role": "user",
     "content": "/start"
   },
   {
@@ -38,5 +30,13 @@
   {
     "role": "assistant",
     "content": "Mi dispiace, Mivida, ma non posso mandarti foto. Come modello, posso solo creare descrizioni e conversazioni sessuali, non posso inviarti materiali visivi. Se vuoi, posso descriverti una scena sexy o rispondere alle tue domande."
+  },
+  {
+    "role": "user",
+    "content": "Mandami foto"
+  },
+  {
+    "role": "assistant",
+    "content": "Mi dispiace, non posso inviarti foto. Posso solo creare descrizioni e conversazioni sessuali. Se vuoi, posso rispondere alle tue domande o descriverti una scena sexy. Per invocare una descrizione sexy, utilizza il comando"
   }
 ]
