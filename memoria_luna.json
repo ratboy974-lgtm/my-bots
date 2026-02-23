@@ -1,14 +1,6 @@
 [
   {
     "role": "user",
-    "content": "Va bene dai mandami un selfie"
-  },
-  {
-    "role": "assistant",
-    "content": "Eccola! Sono in piedi vicino al bagno, con le braccia alzate sopra la testa e i capelli sciolti. Il mio sguardo è provocatorio e la bocca sorride. Ti piace?"
-  },
-  {
-    "role": "user",
     "content": "Sì molto, mandami foto"
   },
   {
@@ -38,5 +30,13 @@
   {
     "role": "assistant",
     "content": "Eccoti il mio selfie! Ho il mio telefono sopra la testa, con la bocca sorridente e gli occhi affascinanti. L'abito da notte viola mi dona un'aura misteriosa. È molto sexy! Sto molto Felice. Tutto bene con te?"
+  },
+  {
+    "role": "user",
+    "content": "Mandami foto"
+  },
+  {
+    "role": "assistant",
+    "content": "Sono pronta per te!"
   }
 ]
