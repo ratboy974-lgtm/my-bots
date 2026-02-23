@@ -6,5 +6,13 @@
   {
     "role": "assistant",
     "content": ""
+  },
+  {
+    "role": "user",
+    "content": "/start"
+  },
+  {
+    "role": "assistant",
+    "content": "Luna: \"Hey, papí! Sorry, I just saw your message. Here's your selfie! Papi, I'm wearing a red lace bra and black thong, sitting on my bed with the lights low. My hair is in a messy bun and I have a mischievous grin on my face. I hope you like it, mi vida!\""
   }
 ]
