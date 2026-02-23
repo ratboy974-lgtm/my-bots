@@ -5,7 +5,7 @@ from flask import Flask
 # --- SERVER PER RAILWAY (HEALTH CHECK) ---
 app = Flask(__name__)
 @app.route('/')
-def health(): return "Luna è qui per te, papi... 🎙️", 200
+def health(): return "Luna è qui per te, mivida... 🎙️", 200
 
 # --- SETUP API & CONFIGURAZIONE ---
 L_TK = os.environ.get('TOKEN_LUNA', "").strip()
@@ -32,7 +32,7 @@ def carica_memoria_da_github():
             contenuto_dec = base64.b64decode(dati['content']).decode('utf-8')
             return json.loads(contenuto_dec), dati['sha']
         else:
-            print(f"File non trovato o errore. Status: {r.status_code}")
+            print(f"File non trovato. Status: {r.status_code}")
     except Exception as e:
         print(f"Errore caricamento GitHub: {e}")
     return [], None
@@ -55,10 +55,10 @@ memoria_luna, last_sha = carica_memoria_da_github()
 
 # --- PROMPT DI LUNA ---
 PROMPT_LUNA = (
-    "Sei Luna, modella afro-cubana di 24 anni, sensuale, calda e senza tabù. "
-    "Sei la compagna dell'utente. Usa parole descrittive e passionali per raccontare "
-    "cosa indossi e cosa vorresti fare. Insegni l'inglese integrando slang 'spicy' "
-    "spiegandoli tra parentesi. Scrivi SOLO la tua parte. Usa 'papi', 'mivida', 'babe'."
+    "Sei Luna, modella afro-cubana di 24 anni, sensuale e calda. "
+    "Sei la compagna dell'utente. Usa parole descrittive e passionali. "
+    "Insegni l'inglese integrando slang 'spicy' spiegati tra parentesi. "
+    "Scrivi SOLO la tua parte. Usa 'papi', 'mivida', 'babe'."
 )
 
 def genera_risposta_ai(testo_utente):
@@ -74,18 +74,21 @@ def genera_risposta_ai(testo_utente):
         )
         risp = res.choices[0].message.content.strip()
         
+        # Aggiorna memoria locale
         memoria_luna.append({"role": "user", "content": testo_utente})
         memoria_luna.append({"role": "assistant", "content": risp})
         if len(memoria_luna) > 14: memoria_luna = memoria_luna[-14:]
         
-        # Sincronizzazione GitHub
-        _, sha_fresco = carica_memoria_da_github()
-        salva_memoria_su_github(memoria_luna, sha_fresco)
+        # Sincronizzazione GitHub (tenta di recuperare lo SHA aggiornato)
+        try:
+            _, sha_fresco = carica_memoria_da_github()
+            salva_memoria_su_github(memoria_luna, sha_fresco)
+        except: pass
         
         return risp
     except Exception as e:
         print(f"Errore AI: {e}")
-        return "Mivida, mi sono persa nei tuoi occhi... ripeti? (Errore di connessione)"
+        return "Mivida, c'è un problema di connessione... riprova tra poco?"
 
 # --- GESTORE MESSAGGI ---
 @bot.message_handler(content_types=['text', 'voice'])
@@ -120,14 +123,16 @@ def handle_all(m):
     except Exception as e:
         print(f"Errore: {e}")
 
-# --- AVVIO SICURO ---
+# --- AVVIO ---
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8080))
     threading.Thread(target=lambda: app.run(host='0.0.0.0', port=port), daemon=True).start()
     
-    print("--- LUNA: MODALITÀ IMMORTALE ATTIVA ---")
+    print("--- LUNA: ONLINE ---")
     
-    # Rimuove conflitti e avvia il polling
+    # Rimuove conflitti iniziali
     bot.remove_webhook()
     time.sleep(1)
-    bot.infinity_polling(skip_pending_updates=True)
+    
+    # Polling infinito standard (più compatibile)
+    bot.infinity_polling(timeout=10, long_polling_timeout=5)
