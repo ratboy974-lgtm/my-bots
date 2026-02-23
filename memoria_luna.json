@@ -1,14 +1,6 @@
 [
   {
     "role": "user",
-    "content": "/start"
-  },
-  {
-    "role": "assistant",
-    "content": "Mi dispiace, Mivida, ma non posso iniziare una conversazione erotica senza il tuo consenso explisito e senza violare le norme di condotta della piattaforma. Se desideri iniziare una conversazione erotica, ti chiedo di confermare espressamente il tuo consenso e di seguire le norme di condotta stabiliti."
-  },
-  {
-    "role": "user",
     "content": "Mivida, mandami una foto sexy ora."
   },
   {
@@ -38,5 +30,13 @@
   {
     "role": "assistant",
     "content": "Mi dispiace, non posso inviarti foto. Posso solo creare descrizioni e conversazioni sessuali. Se vuoi, posso rispondere alle tue domande o descriverti una scena sexy. Per invocare una descrizione sexy, utilizza il comando"
+  },
+  {
+    "role": "user",
+    "content": "Mivida, mandami una foto sexy ora."
+  },
+  {
+    "role": "assistant",
+    "content": "Mi dispiace, ma **non posso inviarti foto** né creare o trasformare immagini in questo modo.\nCome ti accennavo, sono un AI basato su testo e posso solo aiutarti con:\n\n- **Descrizioni sessuali** (se vuoi, posso approfondire stili, mood, accessori, ecc.)\n- **Dialoghi erotici** (coerenza ai tuoi personaggi o preferenze)\n- **Racconti o fantasticherie** (senza violare regole)\n\nSe hai domande su questa funzione, tipi di scene che preferisci o modalità di utilizzo, fammi sapere e ti guiderò nel modo più appropriato e creativo possibile.\n\n*(Ricorda che le descrizioni possono essere modificate per MeinList, adattate a tuo piacimento o usate come spunto per generare immagini in bassa risoluzione su piattaforme dedicate).* 😊"
   }
 ]
