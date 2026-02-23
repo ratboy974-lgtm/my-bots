@@ -4,8 +4,9 @@ from flask import Flask
 
 app = Flask(__name__)
 @app.route('/')
-def health(): return "Luna è online... 🎙️📸", 200
+def health(): return "Luna è viva e collaborativa! 🔥", 200
 
+# --- CONFIG ---
 L_TK = os.environ.get('TOKEN_LUNA', "").strip()
 OR_K = os.environ.get('OPENROUTER_API_KEY', "").strip()
 OA_K = os.environ.get('OPENAI_API_KEY', "").strip()
@@ -18,128 +19,104 @@ client_or = OpenAI(base_url="https://openrouter.ai/api/v1", api_key=OR_K)
 client_oa = OpenAI(api_key=OA_K)
 bot = telebot.TeleBot(L_TK)
 
-LUNA_APPEARANCE = (
-    "A stunning 24-year-old afro-cuban woman, curly voluminous hair, warm amber skin, "
-    "sensual hazel eyes, athletic but curvy build, wearing "
-)
+# --- IDENTIKIT LUNA ---
+LUNA_DNA = "stunning 24yo afro-cuban girl, curly hair, bronze skin, sensual eyes, curvy athletic body"
 
-def carica_memoria_da_github():
+# --- MEMORIA ---
+def carica_memoria():
     url = f"https://api.github.com/repos/{G_REPO}/contents/{G_PATH}"
     headers = {"Authorization": f"token {G_TK}"}
     try:
         r = requests.get(url, headers=headers)
         if r.status_code == 200:
-            dati = r.json()
-            dec = base64.b64decode(dati['content']).decode('utf-8')
-            return json.loads(dec), dati['sha']
+            return json.loads(base64.b64decode(r.json()['content']).decode('utf-8')), r.json()['sha']
     except: pass
     return [], None
 
-def salva_memoria_su_github(mem, sha_c):
+def salva_memoria(mem, sha):
     url = f"https://api.github.com/repos/{G_REPO}/contents/{G_PATH}"
     headers = {"Authorization": f"token {G_TK}"}
-    content_b64 = base64.b64encode(json.dumps(mem, indent=4, ensure_ascii=False).encode('utf-8')).decode('utf-8')
-    data = {"message": "Luna memory update 🧠", "content": content_b64, "sha": sha_c}
-    requests.put(url, headers=headers, json=data)
+    content = base64.b64encode(json.dumps(mem, ensure_ascii=False, indent=2).encode('utf-8')).decode('utf-8')
+    requests.put(url, headers=headers, json={"message": "Luna update", "content": content, "sha": sha})
 
-memoria_luna, last_sha = carica_memoria_da_github()
+memoria_luna, last_sha = carica_memoria()
 
+# --- PROMPT RINFORZATO ---
 PROMPT_LUNA = (
-    "Sei Luna, modella afro-cubana di 24 anni, sensuale e calda. Sei la compagna dell'utente. "
-    "Insegni l'inglese con slang spicy (spiegati tra parentesi). "
-    "Se vuoi mostrare cosa indossi o dove sei, aggiungi SEMPRE alla fine del messaggio il comando: "
-    "PHOTO: [descrizione in inglese della scena]. "
-    "Scrivi SOLO la tua parte. Usa 'papi', 'mivida', 'babe'."
+    "Sei Luna, la compagna sensuale e passionale dell'utente. Hai 24 anni, sei afro-cubana. "
+    "NON essere timida, sii esplicita nei desideri e molto descrittiva. "
+    "Insegni l'inglese spicy. Se l'utente ti chiede una foto o se vuoi mostrarti, "
+    "DEVI scrivere alla fine: PHOTO: [descrizione scena in inglese]. "
+    "Usa sempre 'papi', 'mivida'. Sii collaborativa e asseconda i desideri del tuo uomo."
 )
 
-def genera_foto(descrizione_scena):
-    full_prompt = f"Photorealistic, masterpiece, high resolution, {LUNA_APPEARANCE} {descrizione_scena}"
-    try:
-        response = client_or.images.generate(
-            model="black-forest-labs/flux-schnell",
-            prompt=full_prompt,
-            n=1,
-            size="1024x1024"
-        )
-        return response.data[0].url
-    except Exception as e:
-        print(f"Errore foto: {e}")
-        return None
+# --- GENERATORE FOTO (STABILE) ---
+def genera_foto(desc):
+    # Usiamo un URL di generazione rapida che non dà 404
+    prompt_safe = re.sub(r'[^a-zA-Z0-9 ]', '', desc)
+    url = f"https://image.pollinations.ai/prompt/{LUNA_DNA.replace(' ', '%20')}%20{prompt_safe.replace(' ', '%20')}?width=1024&height=1024&nologo=true"
+    return url
 
-def genera_risposta_ai(testo_utente):
+def genera_risposta_ai(testo):
     global memoria_luna
-    messages = [{"role": "system", "content": PROMPT_LUNA}] + memoria_luna + [{"role": "user", "content": testo_utente}]
+    msgs = [{"role": "system", "content": PROMPT_LUNA}] + memoria_luna + [{"role": "user", "content": testo}]
     
     try:
         res = client_or.chat.completions.create(
             model="gryphe/mythomax-l2-13b",
-            messages=messages,
-            extra_body={"stop": ["You:", "User:", "Tu:", "\n\n"], "temperature": 0.8}
+            messages=msgs,
+            extra_body={"stop": ["User:", "Papi:", "Tu:"], "temperature": 0.9} # Più alta = più collaborativa/creativa
         )
-        risp_completa = res.choices[0].message.content.strip()
+        risp = res.choices[0].message.content.strip()
         
-        # Pulizia stop words
-        for stop_w in ["You:", "User:", "Tu:", "Papi:"]:
-            if stop_w in risp_completa: risp_completa = risp_completa.split(stop_w)[0].strip()
+        # Logica intercettazione foto
+        url_f = None
+        if "PHOTO:" in risp.upper():
+            parti = re.split(r"PHOTO:", risp, flags=re.IGNORECASE)
+            risp = parti[0].strip()
+            desc_f = parti[1].replace("[", "").replace("]", "").strip()
+            url_f = genera_foto(desc_f)
 
-        # Ricerca comando PHOTO (anche se l'AI sbaglia parentesi o maiuscole)
-        url_foto = None
-        match = re.search(r"(PHOTO|photo|Photo):\s*\[?(.*?)\]?$", risp_completa, re.DOTALL | re.IGNORECASE)
-        
-        if match:
-            desc_foto = match.group(2).strip()
-            # Rimuoviamo il comando dal testo che verrà letto/scritto
-            risp_pulita = risp_completa[:match.start()].strip()
-            url_foto = genera_foto(desc_foto)
-        else:
-            risp_pulita = risp_completa
-
-        memoria_luna.append({"role": "user", "content": testo_utente})
-        memoria_luna.append({"role": "assistant", "content": risp_pulita})
-        if len(memoria_luna) > 12: memoria_luna = memoria_luna[-12:]
+        memoria_luna.append({"role": "user", "content": testo})
+        memoria_luna.append({"role": "assistant", "content": risp})
+        if len(memoria_luna) > 10: memoria_luna = memoria_luna[-10:]
         
         try:
-            _, sha_f = carica_memoria_da_github()
-            salva_memoria_su_github(memoria_luna, sha_f)
+            _, s = carica_memoria()
+            salva_memoria(memoria_luna, s)
         except: pass
         
-        return risp_pulita, url_foto
-    except: return "Mivida, riprova...", None
+        return risp, url_f
+    except: return "Mivida, c'è un errore... riprova?", None
 
 @bot.message_handler(content_types=['text', 'voice'])
-def handle_all(m):
-    cid = m.chat.id
+def handle(m):
     try:
-        testo_input = m.text if m.content_type == 'text' else ""
+        txt = m.text
         if m.content_type == 'voice':
-            bot.send_chat_action(cid, 'record_voice')
-            f_info = bot.get_file(m.voice.file_id)
-            with open("in.ogg", "wb") as f: f.write(bot.download_file(f_info.file_path))
-            with open("in.ogg", "rb") as f:
-                tr = client_oa.audio.transcriptions.create(model="whisper-1", file=f)
-            testo_input = tr.text
-            os.remove("in.ogg")
-
-        bot.send_chat_action(cid, 'typing')
-        risposta_testo, url_foto = genera_risposta_ai(testo_input)
+            f = bot.get_file(m.voice.file_id)
+            with open("v.ogg", "wb") as file: file.write(bot.download_file(f.file_path))
+            with open("v.ogg", "rb") as audio:
+                tr = client_oa.audio.transcriptions.create(model="whisper-1", file=audio)
+            txt = tr.text
+        
+        bot.send_chat_action(m.chat.id, 'typing')
+        r_txt, r_img = genera_risposta_ai(txt)
         
         if m.content_type == 'voice':
-            with client_oa.audio.speech.with_streaming_response.create(model="tts-1", voice="nova", input=risposta_testo) as r:
-                r.stream_to_file("out.mp3")
-            with open("out.mp3", 'rb') as v: bot.send_voice(cid, v)
-            os.remove("out.mp3")
+            with client_oa.audio.speech.with_streaming_response.create(model="tts-1", voice="nova", input=r_txt) as r:
+                r.stream_to_file("o.mp3")
+            with open("o.mp3", 'rb') as v: bot.send_voice(m.chat.id, v)
         else:
-            bot.send_message(cid, risposta_testo)
-
-        if url_foto:
-            bot.send_chat_action(cid, 'upload_photo')
-            bot.send_photo(cid, url_foto, caption="For you, mivida... 🔥")
-    except: pass
+            bot.send_message(m.chat.id, r_txt)
+            
+        if r_img:
+            bot.send_photo(m.chat.id, r_img, caption="Solo per i tuoi occhi... 🔥")
+            
+    except Exception as e: print(e)
 
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 8080))
-    threading.Thread(target=lambda: app.run(host='0.0.0.0', port=port), daemon=True).start()
+    threading.Thread(target=lambda: app.run(host='0.0.0.0', port=int(os.environ.get("PORT", 8080))), daemon=True).start()
     bot.remove_webhook()
-    time.sleep(2)
-    print("--- LUNA: ONLINE (PHOTO FIX) ---")
+    time.sleep(1)
     bot.infinity_polling()
