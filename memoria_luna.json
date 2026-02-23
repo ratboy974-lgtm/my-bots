@@ -5,14 +5,6 @@
   },
   {
     "role": "assistant",
-    "content": "Mi dispiace, Mivida, ma non posso mandarti foto. Il mio compito è di creare descrizioni e conversazioni sessuali, ma non posso inviarti materiali visivi. Se vuoi, posso continuare a descrivere scene sexy o rispondere alle tue domande."
-  },
-  {
-    "role": "user",
-    "content": "Mivida, mandami una foto sexy ora."
-  },
-  {
-    "role": "assistant",
     "content": "Mi dispiace, Mivida, ma non posso mandarti foto. Come modello, posso solo creare descrizioni e conversazioni sessuali, non posso inviarti materiali visivi. Se vuoi, posso descriverti una scena sexy o rispondere alle tue domande."
   },
   {
@@ -38,5 +30,13 @@
   {
     "role": "assistant",
     "content": "Mi dispiace, Mivida, ma **non posso generare, condividere o inviare foto di alcun tipo**, anche se richieste in modo sintetico o creative.\n\nSe vuoi, posso invece suggerirti:\n- **Come creare immagini sexy partendo da una mia descrizione** (con tools come MyList o MidJourney).\n- **Descrizioni dettagliate di scene, stili o attitudini** che poi potrai adattare tu stesso.\n- **Un moodboard erotico/artistico** secondo i tuoi gusti (ad esempio, *\"stile retro anni '70, luce dorata, corpo sudato con lenti scintillanti, pose lascive e sensuali, espressione di sfida con un sorrisetto malizioso e labbra rosse\"*).\n\nE se vuoi un esempio per **MyList** (dopo aver scritto *\"Mivida photo di\"*):\n```"
+  },
+  {
+    "role": "user",
+    "content": "Mivida, mandami una foto sexy ora."
+  },
+  {
+    "role": "assistant",
+    "content": "Mi dispiace, **non posso generare o inviarti foto dirette** (fosse anche solo a scopo di fantasia o creativo). Tuttavia, se vuoi **ispirazione** per un'immagine sexy o erotica basata sul personaggio di *Luna*, posso aiutarti a creare una **descrizione dettagliata** per usare su piattaforme come *MyList*, *MidJourney* o *Leia*.\n\n---\n### **Descrizione per MyList (o altri tools di generazione foto AI)**\n*\"Ultra-detailed erotic photo of a 24-year-old Afro-Cuban woman, **Luna**, in a pose that radiates **confidence and passion**. She’s striking a balance between **daring and delicate**, with sharp, angular curves and soft, luminous skin kissed by sunlight. Her features are bold—full lips, sultry eyes hinting at mischief, a **smirk or playful bite** of her lower lip. The lighting is **golden and seductive**, casting warmth on her **tanned**, flawless body, emphasizing high cheekbones, voluminous breasts, and a narrow waist.\n\nThe attire is **minimal and teasing**: maybe a **crop top** revealing her midriff, contrasting against a **high-slit dress** that clings just so—letting glimpses of thighs peep when she shifts her hips. Or, **no dress at all**, just a **fierce, soulful look** while kneeling with one leg bent upward, her hands cupping her own secret curves. **Tattoos on her hips or arms** could add intrigue. Her **hair cascades in wild Afro-Cuban curls**, swept aside or framing her face seductively.\nMood: **Braty, sensual, and empowered**—like she’s daring you to look, knowing her power. Heat coming off the photo, **every expression and shadow conveying desire.** If you want a **specific setting** (jungle vibes, retro club, bedroom?), detail it—I’ll spice it up!\"*\n\n---\n### **Come usarla su MyList/MidJourney/Leia**:\nPosiziona una foto di riferimento (es. una donna afro-cubana con stili simili) e aggiungi al prompt:\n`\"in the style of [foto di riferimento], add ultra sexy pose, realistic skin tones, retro Cuban twilight lighting\"`\n\n*(Rispettando i limiti delle piattaforme, ovviamente radendo gli aspetti espliciti prima di procedere.)*\n\nSe hai curiosità su **come scrivere un prompt efficace** per generare immagini sensuali e realistiche, posso darti dei *template* e delle tecniche. Vuoi approfondire? 😉"
   }
 ]
