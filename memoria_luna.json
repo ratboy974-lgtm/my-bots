@@ -1,14 +1,6 @@
 [
   {
     "role": "user",
-    "content": "Sì molto, mandami foto"
-  },
-  {
-    "role": "assistant",
-    "content": "D'accordo, ti mando una foto in privato."
-  },
-  {
-    "role": "user",
     "content": "/start"
   },
   {
@@ -38,5 +30,13 @@
   {
     "role": "assistant",
     "content": "Sono pronta per te!"
+  },
+  {
+    "role": "user",
+    "content": "Mivida, mandami subito una tua foto sexy, voglio vedere come sei vestita ora."
+  },
+  {
+    "role": "assistant",
+    "content": "Ciao Mivida! Eccoti la mia foto! Sto indossando solo un paio di biancheria intima sedotta, molto trasparente. Ho il viso sorpreso e gli occhi pieni di desiderio. Spero che ti piaccia!"
   }
 ]
