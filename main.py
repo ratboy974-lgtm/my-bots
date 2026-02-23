@@ -48,12 +48,12 @@ def salva_memoria_su_github(mem, sha_c):
 
 memoria_luna, last_sha = carica_memoria_da_github()
 
-# --- PROMPT LUNA (AGGIORNATO PER FOTO) ---
+# --- PROMPT LUNA ---
 PROMPT_LUNA = (
     "Sei Luna, modella afro-cubana di 24 anni, sensuale e calda. Sei la compagna dell'utente. "
-    "Usa parole descrittive. Insegni l'inglese con slang spicy (spiegati tra parentesi). "
+    "Insegni l'inglese con slang spicy (spiegati tra parentesi). "
     "Se vuoi mostrare cosa indossi o dove sei, scrivi alla fine del messaggio: "
-    "[PHOTO: descrizione dettagliata in inglese di cosa stai facendo e come sei vestita]. "
+    "[PHOTO: descrizione dettagliata in inglese della scena]. "
     "Scrivi SOLO la tua parte. Usa 'papi', 'mivida', 'babe'."
 )
 
@@ -61,7 +61,6 @@ PROMPT_LUNA = (
 def genera_foto(descrizione_scena):
     full_prompt = f"Photorealistic, masterpiece, high resolution, {LUNA_APPEARANCE} {descrizione_scena}"
     try:
-        # Utilizzo di FLUX via OpenRouter
         response = client_or.images.generate(
             model="black-forest-labs/flux-schnell",
             prompt=full_prompt,
@@ -70,13 +69,12 @@ def genera_foto(descrizione_scena):
         )
         return response.data[0].url
     except Exception as e:
-        print(f"Errore generazione foto: {e}")
+        print(f"Errore foto: {e}")
         return None
 
 def genera_risposta_ai(testo_utente):
     global memoria_luna
     messages = [{"role": "system", "content": PROMPT_LUNA}] + memoria_luna + [{"role": "user", "content": testo_utente}]
-
     try:
         res = client_or.chat.completions.create(
             model="gryphe/mythomax-l2-13b",
@@ -84,12 +82,9 @@ def genera_risposta_ai(testo_utente):
             extra_body={"stop": ["You:", "User:", "Tu:", "\n\n"], "temperature": 0.8}
         )
         risp = res.choices[0].message.content.strip()
-        
-        # Pulizia dialoghi extra
         for stop_w in ["You:", "User:", "Tu:", "Papi:"]:
             if stop_w in risp: risp = risp.split(stop_w)[0].strip()
 
-        # Controllo se Luna vuole mandare una foto
         url_foto = None
         if "[PHOTO:" in risp:
             parti = risp.split("[PHOTO:")
@@ -100,24 +95,19 @@ def genera_risposta_ai(testo_utente):
         memoria_luna.append({"role": "user", "content": testo_utente})
         memoria_luna.append({"role": "assistant", "content": risp})
         if len(memoria_luna) > 12: memoria_luna = memoria_luna[-12:]
-        
         try:
             _, sha_f = carica_memoria_da_github()
             salva_memoria_su_github(memoria_luna, sha_f)
         except: pass
-        
         return risp, url_foto
-    except Exception as e:
-        return "Mivida, riprova tra un istante... ❤️", None
+    except: return "Mivida, riprova...", None
 
 @bot.message_handler(content_types=['text', 'voice'])
 def handle_all(m):
     cid = m.chat.id
     try:
-        testo_input = ""
-        if m.content_type == 'text':
-            testo_input = m.text
-        elif m.content_type == 'voice':
+        testo_input = m.text if m.content_type == 'text' else ""
+        if m.content_type == 'voice':
             bot.send_chat_action(cid, 'record_voice')
             f_info = bot.get_file(m.voice.file_id)
             with open("in.ogg", "wb") as f: f.write(bot.download_file(f_info.file_path))
@@ -129,7 +119,6 @@ def handle_all(m):
         bot.send_chat_action(cid, 'typing')
         risposta_testo, url_foto = genera_risposta_ai(testo_input)
         
-        # Invia testo o voce
         if m.content_type == 'voice':
             with client_oa.audio.speech.with_streaming_response.create(model="tts-1", voice="nova", input=risposta_testo) as r:
                 r.stream_to_file("out.mp3")
@@ -138,17 +127,17 @@ def handle_all(m):
         else:
             bot.send_message(cid, risposta_testo)
 
-        # Invia foto se presente
         if url_foto:
-            bot.send_chat_action(cid, 'upload_photo')
             bot.send_photo(cid, url_foto, caption="For you, mivida... 🔥")
-
-    except Exception as e:
-        print(f"Errore: {e}")
+    except: pass
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8080))
     threading.Thread(target=lambda: app.run(host='0.0.0.0', port=port), daemon=True).start()
+    
+    # FIX PER ERRORE 409
     bot.remove_webhook()
-    time.sleep(1)
-    bot.infinity_polling()
+    time.sleep(2) # Pausa per permettere a Telegram di chiudere vecchie connessioni
+    
+    print("--- LUNA: ONLINE ---")
+    bot.infinity_polling(timeout=20, long_polling_timeout=10)
