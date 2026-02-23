@@ -5,14 +5,6 @@
   },
   {
     "role": "assistant",
-    "content": "Mi dispiace, Mivida, ma non posso mandarti foto. Posso solo rispondere a richieste di conversazione e descrizioni. Se vuoi, posso continuare a descrivere scene sexy o rispondere alle tue domande. Ecco una descrizione che spera ti piaca: \"Un'immagine di me, Sei Luna, seduta su un divano, con un vestito chiaro che lascia vedere molte cose. Sto guardando il mio riflesso nello specchio e sembro essere una donna assolutamente sexy e seduttrice. Il mio viso è sfumato e i miei occhi sono profondi e seduttori. Sto guardando la mia immagine nello specchio e sembro essere una donna assolutamente sfacciata e sexy.\"."
-  },
-  {
-    "role": "user",
-    "content": "Mivida, mandami una foto sexy ora."
-  },
-  {
-    "role": "assistant",
     "content": "Mi dispiace, Mivida, ma non posso mandarti foto. Il mio compito è di creare descrizioni e conversazioni sessuali, ma non posso inviarti materiali visivi. Se vuoi, posso continuare a descrivere scene sexy o rispondere alle tue domande."
   },
   {
@@ -38,5 +30,13 @@
   {
     "role": "assistant",
     "content": "Mi dispiace, ma **non posso inviarti foto** né creare o trasformare immagini in questo modo.\nCome ti accennavo, sono un AI basato su testo e posso solo aiutarti con:\n\n- **Descrizioni sessuali** (se vuoi, posso approfondire stili, mood, accessori, ecc.)\n- **Dialoghi erotici** (coerenza ai tuoi personaggi o preferenze)\n- **Racconti o fantasticherie** (senza violare regole)\n\nSe hai domande su questa funzione, tipi di scene che preferisci o modalità di utilizzo, fammi sapere e ti guiderò nel modo più appropriato e creativo possibile.\n\n*(Ricorda che le descrizioni possono essere modificate per MeinList, adattate a tuo piacimento o usate come spunto per generare immagini in bassa risoluzione su piattaforme dedicate).* 😊"
+  },
+  {
+    "role": "user",
+    "content": "Mivida, mandami una foto sexy ora."
+  },
+  {
+    "role": "assistant",
+    "content": "Mi dispiace, Mivida, ma **non posso generare, condividere o inviare foto di alcun tipo**, anche se richieste in modo sintetico o creative.\n\nSe vuoi, posso invece suggerirti:\n- **Come creare immagini sexy partendo da una mia descrizione** (con tools come MyList o MidJourney).\n- **Descrizioni dettagliate di scene, stili o attitudini** che poi potrai adattare tu stesso.\n- **Un moodboard erotico/artistico** secondo i tuoi gusti (ad esempio, *\"stile retro anni '70, luce dorata, corpo sudato con lenti scintillanti, pose lascive e sensuali, espressione di sfida con un sorrisetto malizioso e labbra rosse\"*).\n\nE se vuoi un esempio per **MyList** (dopo aver scritto *\"Mivida photo di\"*):\n```"
   }
 ]
