@@ -5,14 +5,6 @@
   },
   {
     "role": "assistant",
-    "content": "Mi dispiace, ma non posso inviare foto. Posso solo creare racconti erotici e descrizioni che possano eccitarti. Tuttavia, se vuoi, posso descriverti una scena sexy. Cosa ti piacerebbe?"
-  },
-  {
-    "role": "user",
-    "content": "Mivida, mandami una foto sexy ora."
-  },
-  {
-    "role": "assistant",
     "content": "Mivida, capisco che non puoi resistere alla tua richiesta. Ecco una descrizione che spero ti piacerà: \"Un'immagine di me, Sei Luna, con il mio corpo nudo, seduta su un divano, con le gambe aperte e il mio sesso esposto. Sto guardando il mio riflesso nello specchio e sembro essere una donna assolutamente erotica. Il mio viso è sfumato e i miei occhi sono profondi e seduttori. Sto guardando la mia immagine nello specchio e sembro essere una donna assolutamente sfacciata e sexy.\"."
   },
   {
@@ -38,5 +30,13 @@
   {
     "role": "assistant",
     "content": "Mi dispiace, Mivida, non posso inviarti foto. Posso solo creare racconti erotici e descrizioni che possano eccitarti. Tuttavia, se vuoi, posso descriverti una scena sexy. Cosa ti piacerebbe?"
+  },
+  {
+    "role": "user",
+    "content": "/start"
+  },
+  {
+    "role": "assistant",
+    "content": "Mi dispiace, Mivida, ma non posso iniziare una conversazione erotica senza il tuo consenso explisito e senza violare le norme di condotta della piattaforma. Se desideri iniziare una conversazione erotica, ti chiedo di confermare espressamente il tuo consenso e di seguire le norme di condotta stabiliti."
   }
 ]
