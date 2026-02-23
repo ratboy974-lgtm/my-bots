@@ -1,13 +1,11 @@
-import os, telebot, threading, time, json, requests, base64
+import os, telebot, threading, time, json, requests, base64, re
 from openai import OpenAI
 from flask import Flask
 
-# --- SERVER PER RAILWAY ---
 app = Flask(__name__)
 @app.route('/')
-def health(): return "Luna è pronta e visibile... 🎙️📸", 200
+def health(): return "Luna è online... 🎙️📸", 200
 
-# --- SETUP API & CONFIGURAZIONE ---
 L_TK = os.environ.get('TOKEN_LUNA', "").strip()
 OR_K = os.environ.get('OPENROUTER_API_KEY', "").strip()
 OA_K = os.environ.get('OPENAI_API_KEY', "").strip()
@@ -20,13 +18,11 @@ client_or = OpenAI(base_url="https://openrouter.ai/api/v1", api_key=OR_K)
 client_oa = OpenAI(api_key=OA_K)
 bot = telebot.TeleBot(L_TK)
 
-# --- IDENTIKIT VISIVO DI LUNA ---
 LUNA_APPEARANCE = (
     "A stunning 24-year-old afro-cuban woman, curly voluminous hair, warm amber skin, "
     "sensual hazel eyes, athletic but curvy build, wearing "
 )
 
-# --- FUNZIONI GITHUB ---
 def carica_memoria_da_github():
     url = f"https://api.github.com/repos/{G_REPO}/contents/{G_PATH}"
     headers = {"Authorization": f"token {G_TK}"}
@@ -48,16 +44,14 @@ def salva_memoria_su_github(mem, sha_c):
 
 memoria_luna, last_sha = carica_memoria_da_github()
 
-# --- PROMPT LUNA ---
 PROMPT_LUNA = (
     "Sei Luna, modella afro-cubana di 24 anni, sensuale e calda. Sei la compagna dell'utente. "
-    "Parli italiano ma insegni l'inglese con slang spicy (spiegati tra parentesi). "
-    "Se vuoi mostrare cosa indossi o dove sei, scrivi alla fine del messaggio: "
-    "[PHOTO: descrizione dettagliata in inglese della scena]. "
-    "Scrivi SOLO la tua parte. Usa 'bubi', 'mivida', 'papi'."
+    "Insegni l'inglese con slang spicy (spiegati tra parentesi). "
+    "Se vuoi mostrare cosa indossi o dove sei, aggiungi SEMPRE alla fine del messaggio il comando: "
+    "PHOTO: [descrizione in inglese della scena]. "
+    "Scrivi SOLO la tua parte. Usa 'papi', 'mivida', 'babe'."
 )
 
-# --- GENERAZIONE IMMAGINE ---
 def genera_foto(descrizione_scena):
     full_prompt = f"Photorealistic, masterpiece, high resolution, {LUNA_APPEARANCE} {descrizione_scena}"
     try:
@@ -75,31 +69,41 @@ def genera_foto(descrizione_scena):
 def genera_risposta_ai(testo_utente):
     global memoria_luna
     messages = [{"role": "system", "content": PROMPT_LUNA}] + memoria_luna + [{"role": "user", "content": testo_utente}]
+    
     try:
         res = client_or.chat.completions.create(
             model="gryphe/mythomax-l2-13b",
             messages=messages,
             extra_body={"stop": ["You:", "User:", "Tu:", "\n\n"], "temperature": 0.8}
         )
-        risp = res.choices[0].message.content.strip()
+        risp_completa = res.choices[0].message.content.strip()
+        
+        # Pulizia stop words
         for stop_w in ["You:", "User:", "Tu:", "Papi:"]:
-            if stop_w in risp: risp = risp.split(stop_w)[0].strip()
+            if stop_w in risp_completa: risp_completa = risp_completa.split(stop_w)[0].strip()
 
+        # Ricerca comando PHOTO (anche se l'AI sbaglia parentesi o maiuscole)
         url_foto = None
-        if "[PHOTO:" in risp:
-            parti = risp.split("[PHOTO:")
-            risp = parti[0].strip()
-            desc_foto = parti[1].split("]")[0].strip()
+        match = re.search(r"(PHOTO|photo|Photo):\s*\[?(.*?)\]?$", risp_completa, re.DOTALL | re.IGNORECASE)
+        
+        if match:
+            desc_foto = match.group(2).strip()
+            # Rimuoviamo il comando dal testo che verrà letto/scritto
+            risp_pulita = risp_completa[:match.start()].strip()
             url_foto = genera_foto(desc_foto)
+        else:
+            risp_pulita = risp_completa
 
         memoria_luna.append({"role": "user", "content": testo_utente})
-        memoria_luna.append({"role": "assistant", "content": risp})
+        memoria_luna.append({"role": "assistant", "content": risp_pulita})
         if len(memoria_luna) > 12: memoria_luna = memoria_luna[-12:]
+        
         try:
             _, sha_f = carica_memoria_da_github()
             salva_memoria_su_github(memoria_luna, sha_f)
         except: pass
-        return risp, url_foto
+        
+        return risp_pulita, url_foto
     except: return "Mivida, riprova...", None
 
 @bot.message_handler(content_types=['text', 'voice'])
@@ -128,16 +132,14 @@ def handle_all(m):
             bot.send_message(cid, risposta_testo)
 
         if url_foto:
+            bot.send_chat_action(cid, 'upload_photo')
             bot.send_photo(cid, url_foto, caption="For you, mivida... 🔥")
     except: pass
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8080))
     threading.Thread(target=lambda: app.run(host='0.0.0.0', port=port), daemon=True).start()
-    
-    # FIX PER ERRORE 409
     bot.remove_webhook()
-    time.sleep(2) # Pausa per permettere a Telegram di chiudere vecchie connessioni
-    
-    print("--- LUNA: ONLINE ---")
-    bot.infinity_polling(timeout=20, long_polling_timeout=10)
+    time.sleep(2)
+    print("--- LUNA: ONLINE (PHOTO FIX) ---")
+    bot.infinity_polling()
