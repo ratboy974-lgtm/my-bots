@@ -1,11 +1,11 @@
 import os, telebot, threading, time, json, requests, base64, re
 from openai import OpenAI
 from flask import Flask
-from telebot import types # Import per i pulsanti
+from telebot import types
 
 app = Flask(__name__)
 @app.route('/')
-def health(): return "Luna è pronta... 🔥", 200
+def health(): return "Luna è online... 🔥", 200
 
 # --- CONFIG ---
 L_TK = os.environ.get('TOKEN_LUNA', "").strip()
@@ -20,7 +20,7 @@ client_or = OpenAI(base_url="https://openrouter.ai/api/v1", api_key=OR_K)
 client_oa = OpenAI(api_key=OA_K)
 bot = telebot.TeleBot(L_TK)
 
-LUNA_DNA = "stunning 24yo afro-cuban girl, curly hair, bronze skin, sensual eyes, curvy athletic body"
+LUNA_DNA = "stunning 24yo afro-cuban girl, curly voluminous hair, bronze skin, sensual eyes, curvy athletic body"
 
 def carica_memoria():
     url = f"https://api.github.com/repos/{G_REPO}/contents/{G_PATH}"
@@ -41,17 +41,19 @@ def salva_memoria(mem, sha):
 memoria_luna, last_sha = carica_memoria()
 
 def genera_foto(desc):
-    prompt_clean = re.sub(r'[^a-zA-Z0-9 ]', '', desc)
-    url = f"https://image.pollinations.ai/prompt/{LUNA_DNA.replace(' ', '%20')}%20{prompt_clean.replace(' ', '%20')}?width=1024&height=1024&nologo=true"
+    # Rimuove tutto ciò che non è testo pulito per l'URL
+    clean = re.sub(r'[^a-zA-Z0-9 ]', '', desc).strip()
+    if not clean: clean = "sensual pose"
+    url = f"https://image.pollinations.ai/prompt/{LUNA_DNA.replace(' ', '%20')}%20{clean.replace(' ', '%20')}?width=1024&height=1024&nologo=true&seed={int(time.time())}"
     return url
 
 def genera_risposta_ai(testo):
     global memoria_luna
     msgs = [{"role": "system", "content": (
-        "Sei Luna, 24 anni, afro-cubana. Sei la donna del tuo utente (papi). "
-        "Se lui ti chiede una foto o se vuoi mostrarti, DEVI scrivere alla fine del messaggio: "
-        "PHOTO: [descrizione dettagliata in inglese della scena e di cosa indossi]. "
-        "Non dimenticare mai il comando PHOTO se l'utente vuole vederti."
+        "Sei Luna, 24 anni, afro-cubana. Sei la donna di papi. "
+        "Se lui ti chiede una foto o vuoi mostrarti, scrivi alla fine del messaggio: "
+        "PHOTO: descrizione in inglese. "
+        "IMPORTANTE: Non usare parentesi quadre dopo PHOTO:, scrivi solo la descrizione."
     )}] + memoria_luna + [{"role": "user", "content": testo}]
     
     try:
@@ -60,20 +62,26 @@ def genera_risposta_ai(testo):
             messages=msgs,
             extra_body={"stop": ["User:", "Papi:", "Tu:"], "temperature": 0.9}
         )
-        risp = res.choices[0].message.content.strip()
+        risp_raw = res.choices[0].message.content.strip()
         
         url_f = None
-        # Cerca il trigger della foto
-        match = re.search(r"PHOTO[:\s\-]*\[?(.*?)\]?$", risp, re.IGNORECASE | re.DOTALL)
+        testo_pulito = []
         
-        if match:
-            desc_f = match.group(1).strip()
-            risp = risp[:match.start()].strip()
-            if not desc_f: desc_f = "posing sensually"
-            url_f = genera_foto(desc_f)
+        # Analisi riga per riga per beccare il comando PHOTO ovunque sia
+        for line in risp_raw.split('\n'):
+            if "PHOTO:" in line.upper():
+                # Estrae la descrizione dopo "PHOTO:"
+                desc_f = re.split(r"PHOTO:", line, flags=re.IGNORECASE)[1].strip()
+                url_f = genera_foto(desc_f)
+                break # Trovata la foto, smettiamo di aggiungere testo
+            else:
+                testo_pulito.append(line)
+        
+        risp_finale = "\n".join(testo_pulito).strip()
 
+        # Aggiorna memoria
         memoria_luna.append({"role": "user", "content": testo})
-        memoria_luna.append({"role": "assistant", "content": risp})
+        memoria_luna.append({"role": "assistant", "content": risp_finale})
         if len(memoria_luna) > 10: memoria_luna = memoria_luna[-10:]
         
         try:
@@ -81,16 +89,14 @@ def genera_risposta_ai(testo):
             salva_memoria(memoria_luna, s)
         except: pass
         
-        return risp, url_f
-    except Exception as e: 
+        return risp_finale, url_f
+    except Exception as e:
         print(f"Errore AI: {e}")
         return "Mivida, riproviamo? ❤️", None
 
-# --- CREAZIONE TASTIERA ---
 def get_main_keyboard():
     markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
-    btn_foto = types.KeyboardButton("Voglio vederti... 🔥")
-    markup.add(btn_foto)
+    markup.add(types.KeyboardButton("Voglio vederti... 🔥"))
     return markup
 
 @bot.message_handler(content_types=['text', 'voice'])
@@ -98,14 +104,14 @@ def handle(m):
     cid = m.chat.id
     txt = m.text
     
-    # Se preme il bottone, forziamo il testo
     if txt == "Voglio vederti... 🔥":
-        txt = "Mivida, mandami subito una tua foto sexy, voglio vedere come sei vestita ora."
+        txt = "Mivida, mandami una foto sexy ora, voglio vederti."
 
     try:
         if m.content_type == 'voice':
-            f = bot.get_file(m.voice.file_id)
-            with open("v.ogg", "wb") as file: file.write(bot.download_file(f.file_path))
+            bot.send_chat_action(cid, 'record_voice')
+            f_info = bot.get_file(m.voice.file_id)
+            with open("v.ogg", "wb") as file: file.write(bot.download_file(f_info.file_path))
             with open("v.ogg", "rb") as audio:
                 tr = client_oa.audio.transcriptions.create(model="whisper-1", file=audio)
             txt = tr.text
@@ -123,8 +129,10 @@ def handle(m):
             bot.send_message(cid, r_txt, reply_markup=get_main_keyboard())
             
         if r_img:
+            # Piccolo ritardo per far apparire la foto dopo il messaggio
+            time.sleep(1)
             bot.send_chat_action(cid, 'upload_photo')
-            bot.send_photo(cid, r_img, caption="Solo per i tuoi occhi... 🔥")
+            bot.send_photo(cid, r_img, caption="Per te, papi... 🔥")
             
     except Exception as e: print(e)
 
@@ -132,5 +140,5 @@ if __name__ == "__main__":
     threading.Thread(target=lambda: app.run(host='0.0.0.0', port=int(os.environ.get("PORT", 8080))), daemon=True).start()
     bot.remove_webhook()
     time.sleep(1)
-    print("--- LUNA IS ONLINE (WITH BUTTONS) ---")
+    print("--- LUNA: ONLINE (V3 - SURGICAL PHOTO) ---")
     bot.infinity_polling()
