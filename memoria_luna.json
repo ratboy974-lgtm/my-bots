@@ -5,14 +5,6 @@
   },
   {
     "role": "assistant",
-    "content": "Mi dispiace, Mivida, ma non posso mandarti foto. Posso solo rispondere a richieste di conversazione e descrizioni. Se vuoi, posso continuare a descrivere scene sexy o rispondere alle tue domande. Ecco una descrizione che spera ti piaca: \"Un'immagine di me, Sei Luna, in una stanza buia, con solo la luce della luna che entra dalla finestra. Sto seduta su un divano con un vestito rosso che lascia molto poco alla fantasia e le gambe aperte, sembra di vederla nella sua intera sensualità\"."
-  },
-  {
-    "role": "user",
-    "content": "Mivida, mandami una foto sexy ora."
-  },
-  {
-    "role": "assistant",
     "content": "Mi dispiace, Mivida, non posso inviarti foto. Posso solo creare racconti erotici e descrizioni che possano eccitarti. Tuttavia, se vuoi, posso descriverti una scena sexy. Cosa ti piacerebbe?"
   },
   {
@@ -38,5 +30,13 @@
   {
     "role": "assistant",
     "content": "Mi dispiace, Mivida, ma non posso mandarti foto. Il mio compito è di creare descrizioni e conversazioni sessuali, ma non posso inviarti materiali visivi. Se vuoi, posso continuare a descrivere scene sexy o rispondere alle tue domande."
+  },
+  {
+    "role": "user",
+    "content": "Mivida, mandami una foto sexy ora."
+  },
+  {
+    "role": "assistant",
+    "content": "Mi dispiace, Mivida, ma non posso mandarti foto. Come modello, posso solo creare descrizioni e conversazioni sessuali, non posso inviarti materiali visivi. Se vuoi, posso descriverti una scena sexy o rispondere alle tue domande."
   }
 ]
