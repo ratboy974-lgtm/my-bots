@@ -1,11 +1,11 @@
-import os, telebot, threading, time, json, requests, base64, re
+import os, telebot, threading, time, json, requests, base64, re, io
 from openai import OpenAI
 from flask import Flask
 from telebot import types
 
 app = Flask(__name__)
 @app.route('/')
-def health(): return "Luna è attiva... 🔥", 200
+def health(): return "Luna è qui... 🔥", 200
 
 # --- CONFIG ---
 L_TK = os.environ.get('TOKEN_LUNA', "").strip()
@@ -22,6 +22,7 @@ bot = telebot.TeleBot(L_TK, threaded=False)
 
 LUNA_DNA = "photorealistic, stunning 24yo afro-cuban woman, curly hair, bronze skin, sensual eyes"
 
+# --- MEMORIA ---
 def carica_memoria():
     url = f"https://api.github.com/repos/{G_REPO}/contents/{G_PATH}"
     headers = {"Authorization": f"token {G_TK}"}
@@ -36,14 +37,28 @@ def salva_memoria(mem, sha):
     url = f"https://api.github.com/repos/{G_REPO}/contents/{G_PATH}"
     headers = {"Authorization": f"token {G_TK}"}
     content = base64.b64encode(json.dumps(mem, ensure_ascii=False, indent=2).encode('utf-8')).decode('utf-8')
-    requests.put(url, headers=headers, json={"message": "Luna memory update", "content": content, "sha": sha})
+    requests.put(url, headers=headers, json={"message": "Luna update", "content": content, "sha": sha})
 
 memoria_luna, last_sha = carica_memoria()
 
-def genera_foto(desc):
-    clean = re.sub(r'[^a-zA-Z0-9 ]', '', desc).strip()
+# --- FUNZIONE DOWNLOAD FOTO ---
+def scarica_e_invia_foto(cid, desc_f):
+    clean = re.sub(r'[^a-zA-Z0-9 ]', '', desc_f).strip()
     full_p = f"{LUNA_DNA}, {clean}, highly detailed, 8k"
-    return f"https://image.pollinations.ai/prompt/{full_p.replace(' ', '%20')}?width=1024&height=1024&nologo=true&seed={int(time.time())}"
+    img_url = f"https://image.pollinations.ai/prompt/{full_p.replace(' ', '%20')}?width=1024&height=1024&nologo=true&seed={int(time.time())}"
+    
+    try:
+        # Scarichiamo la foto nei server del bot
+        response = requests.get(img_url, timeout=30)
+        if response.status_code == 200:
+            img_data = io.BytesIO(response.content)
+            img_data.name = 'luna.jpg'
+            # Inviamo il file scaricato a Telegram
+            bot.send_photo(cid, img_data, caption="Per te, papi... 🔥")
+        else:
+            bot.send_message(cid, "Mivida, la fotocamera ha avuto un problema... riproviamo? ❤️")
+    except Exception as e:
+        print(f"ERRORE DOWNLOAD/INVIO FOTO: {e}")
 
 def genera_risposta_ai(testo):
     global memoria_luna
@@ -54,7 +69,6 @@ def genera_risposta_ai(testo):
     msgs = [{"role": "system", "content": system_msg}] + memoria_luna + [{"role": "user", "content": testo}]
     
     try:
-        # Usiamo Mistral 7B: veloce, affidabile e con pochi filtri
         res = client_or.chat.completions.create(
             model="mistralai/mistral-7b-instruct",
             messages=msgs,
@@ -63,11 +77,11 @@ def genera_risposta_ai(testo):
         risp_raw = res.choices[0].message.content.strip()
         
         url_f = None
+        desc_foto = None
         if "PHOTO:" in risp_raw.upper():
             parti = re.split(r"PHOTO:", risp_raw, flags=re.IGNORECASE)
             risp_finale = parti[0].strip()
-            desc_f = parti[1].strip().replace("[", "").replace("]", "")
-            url_f = genera_foto(desc_f)
+            desc_foto = parti[1].strip().replace("[", "").replace("]", "")
         else:
             risp_finale = risp_raw
 
@@ -79,9 +93,9 @@ def genera_risposta_ai(testo):
             _, s = carica_memoria()
             salva_memoria(memoria_luna, s)
         except: pass
-        return risp_finale, url_f
+        return risp_finale, desc_foto
     except Exception as e:
-        print(f"ERRORE API OPENROUTER: {e}") # Fondamentale per capire il crash
+        print(f"ERRORE API: {e}")
         return "Mivida, riproviamo? ❤️", None
 
 @bot.message_handler(func=lambda m: True, content_types=['text', 'voice'])
@@ -93,22 +107,23 @@ def handle(m):
 
     try:
         bot.send_chat_action(cid, 'typing')
-        r_txt, r_img = genera_risposta_ai(txt)
+        r_txt, d_foto = genera_risposta_ai(txt)
         
         markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
         markup.add(types.KeyboardButton("Voglio vederti... 🔥"))
 
         bot.send_message(cid, r_txt, reply_markup=markup)
             
-        if r_img:
-            time.sleep(1)
-            bot.send_photo(cid, r_img, caption="Per te, papi... 🔥")
+        if d_foto:
+            bot.send_chat_action(cid, 'upload_photo')
+            scarica_e_invia_foto(cid, d_foto)
+            
     except Exception as e:
-        print(f"ERRORE BOT: {e}")
+        print(f"ERRORE HANDLER: {e}")
 
 if __name__ == "__main__":
     threading.Thread(target=lambda: app.run(host='0.0.0.0', port=int(os.environ.get("PORT", 8080))), daemon=True).start()
     bot.remove_webhook()
     time.sleep(2)
-    print("--- LUNA V5 ONLINE (MISTRAL) ---")
+    print("--- LUNA V6 ONLINE (FIX 400) ---")
     bot.infinity_polling()
