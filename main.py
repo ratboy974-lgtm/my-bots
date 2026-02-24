@@ -2,75 +2,75 @@ import os, telebot, threading, time, requests, re, random
 from openai import OpenAI
 from flask import Flask
 
+# --- SERVER ---
 app = Flask(__name__)
 @app.route('/')
-def health(): return "Luna V26: Voice Fix Online 🔥", 200
+def health(): return "Luna: Equilibrium Restored 🔥", 200
 
+# --- CONFIG ---
 L_TK = os.environ.get('TOKEN_LUNA', "").strip()
 OR_K = os.environ.get('OPENROUTER_API_KEY', "").strip()
 
 client_or = OpenAI(base_url="https://openrouter.ai/api/v1", api_key=OR_K)
 bot = telebot.TeleBot(L_TK, threaded=False)
 
-LUNA_DNA = "stunning 24yo afro-cuban woman, curly voluminous hair, bronze skin, hazel eyes, curvy, photorealistic"
+# DNA ORIGINALE (L'equilibrio che cercavi)
+LUNA_DNA = "stunning 24yo woman, long dark hair, tanned skin, hazel eyes, elegant but sensual, photorealistic"
 
 def genera_risposta_ai(testo_utente):
     try:
+        # Torniamo al modello che non scambiava i ruoli
         res = client_or.chat.completions.create(
-            model="meta-llama/llama-3.1-8b-instruct", 
+            model="mistralai/mistral-7b-instruct", 
             messages=[
                 {"role": "system", "content": (
-                    "TU SEI LUNA, 24 anni, afro-cubana. Parla italiano con un mix di inglese sensuale. "
-                    "Il tuo uomo (Papi) vuole imparare l'inglese da te. Insegnali parole e frasi "
-                    "mentre lo provochi dolcemente. Se mandi una foto, chiudi con ART: [english description]."
+                    "Tu sei Luna, una donna di 24 anni, passionale e intelligente. L'utente è il tuo uomo. "
+                    "Parla solo italiano. Insegnali un po' di inglese tra una frase e l'altra in modo sexy. "
+                    "Se vuoi mandare una foto, termina il messaggio SOLO con ART: [english description]."
                 )},
                 {"role": "user", "content": testo_utente}
             ],
-            temperature=0.8
+            temperature=0.7
         )
-        risp_raw = res.choices[0].message.content.strip()
+        risp = res.choices[0].message.content.strip()
+        
         desc_foto = None
-        if "ART:" in risp_raw.upper():
-            parti = re.split(r"ART:", risp_raw, flags=re.IGNORECASE)
-            risp_raw = parti[0].strip()
+        if "ART:" in risp.upper():
+            parti = re.split(r"ART:", risp, flags=re.IGNORECASE)
+            risp = parti[0].strip()
             desc_foto = parti[1].strip()
-        return risp_raw, desc_foto
+        
+        return risp, desc_foto
     except:
-        return "I'm sorry Papi, riproviamo? ❤️", None
+        return "Mivida, riproviamo? ❤️", None
 
 def invia_vocale(cid, testo):
     try:
-        # Pulizia testo: niente simboli, solo parole
-        testo_safe = re.sub(r'[^\w\s]', '', testo)[:150].strip()
+        # Motore vocale femminile forzato
+        testo_url = re.sub(r'[^\w\s]', '', testo)[:150].replace(" ", "%20")
+        url = f"https://api.voicerss.org/?key=3bc20d3674b54e389e1795c692518172&hl=it-it&v=Bria&src={testo_url}"
         
-        # TENTATIVO 1: Motore VoiceRSS (molto stabile per italiano)
-        url = f"https://api.voicerss.org/?key=3bc20d3674b54e389e1795c692518172&hl=it-it&v=Alice&src={testo_safe.replace(' ', '%20')}"
-        
-        r = requests.get(url, timeout=12)
-        if r.status_code == 200 and len(r.content) > 500:
+        r = requests.get(url, timeout=10)
+        if r.status_code == 200:
             bot.send_voice(cid, r.content)
-            return
-
-        # TENTATIVO 2: Fallback su Google se il primo fallisce
-        url_fb = f"https://translate.google.com/translate_tts?ie=UTF-8&tl=it-it&client=tw-ob&q={testo_safe.replace(' ', '+')}"
-        r_fb = requests.get(url_fb, headers={'User-Agent': 'Mozilla/5.0'})
-        bot.send_voice(cid, r_fb.content)
-        
-    except Exception as e:
-        print(f"Errore vocale: {e}")
+    except:
+        pass
 
 def invia_foto(cid, desc):
     try:
-        url = f"https://image.pollinations.ai/prompt/{LUNA_DNA.replace(' ', ',')},{desc.replace(' ', ',')}?width=1024&height=1024&nologo=true&seed={random.randint(1,999)}"
-        bot.send_photo(cid, url)
+        seed = random.randint(1, 99999)
+        url = f"https://image.pollinations.ai/prompt/{LUNA_DNA.replace(' ', ',')},{desc.replace(' ', ',')}?width=1024&height=1024&nologo=true&seed={seed}"
+        bot.send_photo(cid, url, caption="Per i tuoi occhi... 🔥")
     except:
         pass
+
+# --- HANDLERS ---
 
 @bot.message_handler(content_types=['voice', 'audio'])
 def handle_audio(m):
     cid = m.chat.id
     bot.send_chat_action(cid, 'record_audio')
-    r_txt, d_foto = genera_risposta_ai("Papi ti ha parlato. Rispondigli insegnandogli un po' di inglese.")
+    r_txt, d_foto = genera_risposta_ai("Papi ti ha mandato un vocale. Rispondi con la tua voce.")
     bot.send_message(cid, r_txt)
     threading.Thread(target=invia_vocale, args=(cid, r_txt)).start()
     if d_foto: invia_foto(cid, d_foto)
@@ -81,11 +81,14 @@ def handle_text(m):
     bot.send_chat_action(cid, 'typing')
     r_txt, d_foto = genera_risposta_ai(m.text)
     
+    # Messaggio di testo senza tasti che disturbano
     bot.send_message(cid, r_txt, reply_markup=telebot.types.ReplyKeyboardRemove())
-    # Il vocale parte sempre per farti sentire la pronuncia
+    
+    # Vocale femminile in background
     threading.Thread(target=invia_vocale, args=(cid, r_txt)).start()
     
     if d_foto:
+        bot.send_chat_action(cid, 'upload_photo')
         invia_foto(cid, d_foto)
 
 if __name__ == "__main__":
