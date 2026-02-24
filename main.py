@@ -5,7 +5,7 @@ from telebot import types
 
 app = Flask(__name__)
 @app.route('/')
-def health(): return "Luna è tornata quella di sempre... 🔥", 200
+def health(): return "Luna è tornata... e stavolta ha la voce giusta! 🔥", 200
 
 # --- CONFIG ---
 L_TK = os.environ.get('TOKEN_LUNA', "").strip()
@@ -14,8 +14,8 @@ OR_K = os.environ.get('OPENROUTER_API_KEY', "").strip()
 client_or = OpenAI(base_url="https://openrouter.ai/api/v1", api_key=OR_K)
 bot = telebot.TeleBot(L_TK, threaded=False)
 
-# IL VECCHIO DNA (Quello che amavi: Afro-cubana, 24 anni, sensuale)
-LUNA_DNA_OLD = "stunning 24yo afro-cuban woman, curly voluminous hair, bronze skin, hazel eyes, curvy"
+# DNA ORIGINALE: 24 anni, afro-cubana, hazel eyes, curvy
+LUNA_DNA = "stunning 24yo afro-cuban woman, curly voluminous hair, bronze skin, hazel eyes, curvy"
 
 def genera_risposta_ai(testo):
     try:
@@ -23,9 +23,8 @@ def genera_risposta_ai(testo):
             model="gryphe/mythomax-l2-13b", 
             messages=[
                 {"role": "system", "content": (
-                    "Sei Luna, 24 anni, afro-cubana. Sei passionale, dolce e senza tabù. "
-                    "Parla italiano. Se l'utente chiede una foto, finisci SEMPRE con ART: [english description]. "
-                    "Non essere mai banale, sii la sua Luna."
+                    "Sei Luna, 24 anni, afro-cubana. Parla italiano. Sei passionale e dolce. "
+                    "Se l'utente vuole una foto, finisci il messaggio con ART: [english description]."
                 )},
                 {"role": "user", "content": testo}
             ],
@@ -43,46 +42,45 @@ def genera_risposta_ai(testo):
     except:
         return "Mivida, riproviamo? ❤️", None
 
-# --- GESTIONE VOCALI (Text to Speech) ---
+# --- FIX VOCE FEMMINILE ---
 def rispondi_con_voce(cid, testo):
     try:
-        # Usiamo un servizio TTS gratuito e veloce
-        tts_url = f"https://translate.google.com/translate_tts?ie=UTF-8&tl=it-IT&client=tw-ob&q={testo.replace(' ', '+')}"
-        res = requests.get(tts_url)
+        # Pulizia testo per URL
+        testo_pulito = testo.replace(" ", "+")
+        # Forziamo il parametro della lingua italiana femminile
+        tts_url = f"https://translate.google.com/translate_tts?ie=UTF-8&q={testo_pulito}&tl=it&total=1&idx=0&textlen={len(testo)}&client=tw-ob&prev=input"
+        
+        res = requests.get(tts_url, headers={'User-Agent': 'Mozilla/5.0'})
         if res.status_code == 200:
             bot.send_voice(cid, res.content)
     except Exception as e:
-        print(f"Errore vocale: {e}")
+        print(f"Errore voce: {e}")
 
 def invia_foto(cid, desc):
     try:
-        # Torniamo al generatore classico ma con il DNA vecchio
         seed = random.randint(1, 99999)
-        url = f"https://image.pollinations.ai/prompt/{LUNA_DNA_OLD.replace(' ', ',')},{desc.replace(' ', ',')}?width=1024&height=1024&nologo=true&seed={seed}"
-        bot.send_photo(cid, url, caption="Per i tuoi occhi... 🔥")
+        url = f"https://pollinations.ai/p/{LUNA_DNA.replace(' ', ',')},{desc.replace(' ', ',')}?width=1024&height=1024&nologo=true&seed={seed}&model=flux"
+        bot.send_photo(cid, url, caption="Per te... 🔥")
     except:
         pass
 
 # --- HANDLERS ---
 
-# Gestione Vocali in entrata
 @bot.message_handler(content_types=['voice'])
 def handle_voice(m):
     cid = m.chat.id
     bot.send_chat_action(cid, 'record_audio')
-    # Per ora Luna risponde al vocale processando il testo (puoi aggiungere speech-to-text dopo)
-    r_txt, d_foto = genera_risposta_ai("L'utente ti ha mandato un messaggio vocale passionale.")
+    # Luna risponde al vocale con la sua voce femminile
+    r_txt, d_foto = genera_risposta_ai("L'utente ti ha parlato. Rispondi con amore.")
     rispondi_con_voce(cid, r_txt)
     if d_foto: invia_foto(cid, d_foto)
 
-# Gestione Testo
 @bot.message_handler(func=lambda m: True)
 def handle_text(m):
     cid = m.chat.id
     txt = m.text
-    if txt == "Voglio vederti... 🔥":
-        txt = "Mivida, mostrati a me ora. Usa ART:"
-
+    
+    # Se riceve testo, risponde con testo (e foto se richiesta)
     bot.send_chat_action(cid, 'typing')
     r_txt, d_foto = genera_risposta_ai(txt)
     
