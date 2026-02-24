@@ -4,7 +4,7 @@ from flask import Flask
 
 app = Flask(__name__)
 @app.route('/')
-def health(): return "Luna & Cox V32: Active 🔥", 200
+def health(): return "Luna & Cox V33: Active 🔥", 200
 
 def clean_token(token_name):
     t = os.environ.get(token_name, "").strip()
@@ -57,7 +57,8 @@ if bot_luna:
             messages=[{"role": "system", "content": PROMPT_LUNA}, {"role": "user", "content": u_text or "Ciao"}]
         )
         ans = res.choices[0].message.content
-        bot_luna.send_message(cid, ans) # FIX: bot_luna invece di bot
+        # CORRETTO: Usiamo bot_luna invece di bot
+        bot_luna.send_message(cid, ans)
         threading.Thread(target=invia_voce_pro, args=(bot_luna, cid, ans, "shimmer")).start()
 
 # --- GESTORE COX ---
@@ -85,20 +86,22 @@ if bot_cox:
         threading.Thread(target=invia_voce_pro, args=(bot_cox, cid, ans, "onyx")).start()
 
 if __name__ == "__main__":
-    # Avvio Flask
+    # Flask su thread separato
     threading.Thread(target=lambda: app.run(host='0.0.0.0', port=int(os.environ.get("PORT", 8080))), daemon=True).start()
     
-    # Pulizia webhook per evitare Errore 409
+    # Pulizia Webhook per evitare Conflict 409
     if bot_luna: 
         bot_luna.remove_webhook()
         time.sleep(1)
-        threading.Thread(target=bot_luna.infinity_polling, kwargs={'timeout': 60}).start()
+        threading.Thread(target=bot_luna.infinity_polling, kwargs={'timeout': 60, 'non_stop': True}).start()
         print("✅ Luna Online")
         
     if bot_cox: 
         bot_cox.remove_webhook()
         time.sleep(1)
-        threading.Thread(target=bot_cox.infinity_polling, kwargs={'timeout': 60}).start()
+        threading.Thread(target=bot_cox.infinity_polling, kwargs={'timeout': 60, 'non_stop': True}).start()
         print("✅ Cox Online")
     
-    while True: time.sleep(10)
+    # Loop principale per tenere vivo il container
+    while True: 
+        time.sleep(60)
