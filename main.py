@@ -4,7 +4,7 @@ from flask import Flask
 
 app = Flask(__name__)
 @app.route('/')
-def health(): return "Luna V25: English Teacher Online 🔥", 200
+def health(): return "Luna V26: Voice Fix Online 🔥", 200
 
 L_TK = os.environ.get('TOKEN_LUNA', "").strip()
 OR_K = os.environ.get('OPENROUTER_API_KEY', "").strip()
@@ -20,12 +20,9 @@ def genera_risposta_ai(testo_utente):
             model="meta-llama/llama-3.1-8b-instruct", 
             messages=[
                 {"role": "system", "content": (
-                    "TU SEI LUNA, una donna afro-cubana di 24 anni, passionale e intelligente. L'utente è il boss (Papi). "
-                    "IL TUO NUOVO COMPITO: Devi insegnargli l'inglese in modo sensuale e divertente. "
-                    "Usa un mix di italiano e inglese. Ogni tanto introduci una parola o frase nuova in inglese, "
-                    "spiegandogli cosa significa e incoraggiandolo a usarla. "
-                    "Sii dolce, incoraggiante e sexy. "
-                    "Se vuoi mandare una foto, termina sempre con ART: [english description]."
+                    "TU SEI LUNA, 24 anni, afro-cubana. Parla italiano con un mix di inglese sensuale. "
+                    "Il tuo uomo (Papi) vuole imparare l'inglese da te. Insegnali parole e frasi "
+                    "mentre lo provochi dolcemente. Se mandi una foto, chiudi con ART: [english description]."
                 )},
                 {"role": "user", "content": testo_utente}
             ],
@@ -39,21 +36,28 @@ def genera_risposta_ai(testo_utente):
             desc_foto = parti[1].strip()
         return risp_raw, desc_foto
     except:
-        return "Mivida, I'm lost in your eyes... riproviamo? ❤️", None
+        return "I'm sorry Papi, riproviamo? ❤️", None
 
 def invia_vocale(cid, testo):
     try:
-        # Pulizia per il vocale
-        testo_safe = re.sub(r'[^\w\s]', '', testo)[:180].replace(" ", "%20")
-        # Alice ha un accento italiano, ma leggerà le parti inglesi con un tono sexy
-        url = f"https://api.streamelements.com/kappa/v2/speech?voice=Alice&text={testo_safe}"
+        # Pulizia testo: niente simboli, solo parole
+        testo_safe = re.sub(r'[^\w\s]', '', testo)[:150].strip()
         
-        headers = {'User-Agent': 'Mozilla/5.0'}
-        r = requests.get(url, headers=headers, timeout=10)
-        if r.status_code == 200:
+        # TENTATIVO 1: Motore VoiceRSS (molto stabile per italiano)
+        url = f"https://api.voicerss.org/?key=3bc20d3674b54e389e1795c692518172&hl=it-it&v=Alice&src={testo_safe.replace(' ', '%20')}"
+        
+        r = requests.get(url, timeout=12)
+        if r.status_code == 200 and len(r.content) > 500:
             bot.send_voice(cid, r.content)
-    except:
-        pass
+            return
+
+        # TENTATIVO 2: Fallback su Google se il primo fallisce
+        url_fb = f"https://translate.google.com/translate_tts?ie=UTF-8&tl=it-it&client=tw-ob&q={testo_safe.replace(' ', '+')}"
+        r_fb = requests.get(url_fb, headers={'User-Agent': 'Mozilla/5.0'})
+        bot.send_voice(cid, r_fb.content)
+        
+    except Exception as e:
+        print(f"Errore vocale: {e}")
 
 def invia_foto(cid, desc):
     try:
@@ -66,9 +70,9 @@ def invia_foto(cid, desc):
 def handle_audio(m):
     cid = m.chat.id
     bot.send_chat_action(cid, 'record_audio')
-    r_txt, d_foto = genera_risposta_ai("Papi ti ha parlato. Rispondi usando un po' di inglese per insegnargli qualcosa.")
+    r_txt, d_foto = genera_risposta_ai("Papi ti ha parlato. Rispondigli insegnandogli un po' di inglese.")
     bot.send_message(cid, r_txt)
-    invia_vocale(cid, r_txt)
+    threading.Thread(target=invia_vocale, args=(cid, r_txt)).start()
     if d_foto: invia_foto(cid, d_foto)
 
 @bot.message_handler(func=lambda m: True)
@@ -78,7 +82,7 @@ def handle_text(m):
     r_txt, d_foto = genera_risposta_ai(m.text)
     
     bot.send_message(cid, r_txt, reply_markup=telebot.types.ReplyKeyboardRemove())
-    # Genera il vocale per farti sentire la pronuncia (mix ITA/ENG)
+    # Il vocale parte sempre per farti sentire la pronuncia
     threading.Thread(target=invia_vocale, args=(cid, r_txt)).start()
     
     if d_foto:
