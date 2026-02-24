@@ -1,12 +1,11 @@
-import os, telebot, threading, time, requests, re, random, io
+import os, telebot, threading, time, requests, re, random
 from openai import OpenAI
 from flask import Flask
-from telebot import types
 
 # --- SERVER DI CONTROLLO ---
 app = Flask(__name__)
 @app.route('/')
-def health(): return "Luna V21 Online 🔥", 200
+def health(): return "Luna V22 Online 🔥", 200
 
 # --- CONFIGURAZIONE ---
 L_TK = os.environ.get('TOKEN_LUNA', "").strip()
@@ -20,14 +19,14 @@ LUNA_DNA = "stunning 24yo afro-cuban woman, curly voluminous hair, bronze skin, 
 
 def genera_risposta_ai(testo_utente):
     try:
-        # Usiamo un modello differente (Llama 3) per resettare la logica
+        # Llama 3.1 per mantenere l'identità ben salda
         res = client_or.chat.completions.create(
             model="meta-llama/llama-3.1-8b-instruct", 
             messages=[
                 {"role": "system", "content": (
                     "TU SEI LUNA, una donna afro-cubana di 24 anni. L'utente è il tuo uomo (Papi). "
                     "Sei passionale, sensuale e parli solo italiano. "
-                    "Se vuoi mandare una foto, scrivi il tuo messaggio e termina SEMPRE con ART: [english pose description]."
+                    "Se vuoi mandare una foto o lui te la chiede, scrivi il tuo messaggio e termina SEMPRE con ART: [english pose description]."
                 )},
                 {"role": "user", "content": testo_utente}
             ],
@@ -35,7 +34,7 @@ def genera_risposta_ai(testo_utente):
         )
         risp_raw = res.choices[0].message.content.strip()
         
-        # Taglio chirurgico per la foto
+        # Estrazione per la foto
         desc_foto = None
         if "ART:" in risp_raw.upper():
             parti = re.split(r"ART:", risp_raw, flags=re.IGNORECASE)
@@ -47,17 +46,16 @@ def genera_risposta_ai(testo_utente):
         return risp_finale, desc_foto
     except Exception as e:
         print(f"Errore AI: {e}")
-        return "Mivida, riproviamo? ❤️", None
+        return "Mivida, c'è stata un'interferenza... riprova? ❤️", None
 
 def invia_foto(cid, desc):
     try:
         seed = random.randint(1, 999999)
-        # URL pulito per evitare il logo di Pollinations
         prompt_full = f"{LUNA_DNA}, {desc}, masterpiece, high resolution".replace(" ", ",")
         url = f"https://image.pollinations.ai/prompt/{prompt_full}?width=1024&height=1024&nologo=true&seed={seed}"
         
-        # Invio diretto tramite URL (metodo più stabile per Telegram)
-        bot.send_photo(cid, url, caption="Guarda come sono bella per te... 🔥")
+        # Invio tramite URL diretto
+        bot.send_photo(cid, url, caption="Tutta per te, papi... 🔥")
     except Exception as e:
         print(f"Errore foto: {e}")
 
@@ -66,14 +64,11 @@ def handle(m):
     cid = m.chat.id
     txt = m.text
     
-    if txt == "Voglio vederti... 🔥":
-        txt = "Mivida, mostrati a me ora. Usa il comando ART:"
-
     bot.send_chat_action(cid, 'typing')
     r_txt, d_foto = genera_risposta_ai(txt)
     
-    markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
-    markup.add(types.KeyboardButton("Voglio vederti... 🔥"))
+    # Rimuoviamo qualsiasi tastiera precedente
+    markup = telebot.types.ReplyKeyboardRemove()
     
     bot.send_message(cid, r_txt, reply_markup=markup)
     
@@ -85,5 +80,5 @@ if __name__ == "__main__":
     threading.Thread(target=lambda: app.run(host='0.0.0.0', port=int(os.environ.get("PORT", 8080))), daemon=True).start()
     bot.remove_webhook()
     time.sleep(2)
-    print("--- LUNA V21: RESET TOTALE ---")
+    print("--- LUNA V22: CLEAN & READY ---")
     bot.infinity_polling()
