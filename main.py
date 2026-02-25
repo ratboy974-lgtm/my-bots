@@ -64,7 +64,6 @@ def tts(testo, voce):
     return r.content
 
 
-# --- LUNA ---
 if bot_luna:
     @bot_luna.message_handler(content_types=['text', 'voice'])
     def handle_luna(m):
@@ -77,20 +76,16 @@ if bot_luna:
                     bot_luna.send_message(cid, "Non ho capito, ripeti papi 🥺")
                     return
                 ans = chiedi_llm(PROMPT_LUNA, u_text, "mistralai/mistral-7b-instruct")
-                audio = tts(ans, "shimmer")
-                bot_luna.send_voice(cid, audio)
-
+                bot_luna.send_voice(cid, tts(ans, "shimmer"))
             else:
                 bot_luna.send_chat_action(cid, 'typing')
                 ans = chiedi_llm(PROMPT_LUNA, m.text or "Ciao", "mistralai/mistral-7b-instruct")
                 bot_luna.send_message(cid, ans)
-
         except Exception as e:
             print(f"[LUNA ERROR] {e}")
             bot_luna.send_message(cid, "Errore, riprova papi 🥺")
 
 
-# --- COX ---
 if bot_cox:
     @bot_cox.message_handler(content_types=['text', 'voice'])
     def handle_cox(m):
@@ -103,20 +98,16 @@ if bot_cox:
                     bot_cox.send_message(cid, "Non ho capito, Fernanda. Riprova.")
                     return
                 ans = chiedi_llm(PROMPT_COX, u_text, "google/gemini-flash-1.5")
-                audio = tts(ans, "onyx")
-                bot_cox.send_voice(cid, audio)
-
+                bot_cox.send_voice(cid, tts(ans, "onyx"))
             else:
                 bot_cox.send_chat_action(cid, 'typing')
                 ans = chiedi_llm(PROMPT_COX, m.text or "Ciao", "google/gemini-flash-1.5")
                 bot_cox.send_message(cid, ans)
-
         except Exception as e:
             print(f"[COX ERROR] {e}")
             bot_cox.send_message(cid, "Errore di sistema, Lucinda.")
 
 
-# --- MAIN ---
 if __name__ == "__main__":
     threading.Thread(
         target=lambda: app.run(host='0.0.0.0', port=int(os.environ.get("PORT", 8080))),
@@ -128,10 +119,10 @@ if __name__ == "__main__":
             bot_luna.remove_webhook()
         except Exception:
             pass
-        time.sleep(2)
+        time.sleep(5)
         threading.Thread(
             target=bot_luna.polling,
-            kwargs={'timeout': 60, 'non_stop': True, 'skip_pending': True},
+            kwargs={'timeout': 60, 'non_stop': True},
             daemon=True
         ).start()
         print("Luna Online")
@@ -141,10 +132,10 @@ if __name__ == "__main__":
             bot_cox.remove_webhook()
         except Exception:
             pass
-        time.sleep(2)
+        time.sleep(5)
         threading.Thread(
             target=bot_cox.polling,
-            kwargs={'timeout': 60, 'non_stop': True, 'skip_pending': True},
+            kwargs={'timeout': 60, 'non_stop': True},
             daemon=True
         ).start()
         print("Cox Online")
