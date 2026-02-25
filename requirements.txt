@@ -2,4 +2,3 @@ pyTelegramBotAPI==4.14.1
 openai
 flask
 requests
-python-dotenv
