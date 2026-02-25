@@ -6,7 +6,7 @@ app = Flask(__name__)
 
 @app.route('/')
 def health():
-    return "Luna & Cox V41: Memory & Voice Fixed 🔥", 200
+    return "Luna & Cox V41: Active & Stable 🔥", 200
 
 # --- CONFIGURAZIONE ---
 def clean_token(token_name):
@@ -42,17 +42,16 @@ def salva_memoria(nuova_parola):
 # --- PROMPTS ---
 PROMPT_LUNA = (
     "Sei Luna, 24 anni, la donna di Papi. Insegni inglese in modo sexy. "
-    "Quando insegni una parola nuova, scrivila esattamente così: 'Word of the day: [parola]'. "
+    "Quando insegni una parola nuova, scrivi sempre 'Word of the day: [parola]'. "
     "Rispondi in massimo 150 parole."
 )
 PROMPT_COX = (
     "Sei il Dr. Perry Cox. Genio veterinario acido e brutale. "
-    "Se ricevi una foto, analizzala tecnicamente. Max 150 parole."
+    "Se ricevi una foto, analizzala tecnicamente con precisione chirurgica. Max 150 parole."
 )
 
 # --- FUNZIONI CORE ---
 def chiedi_llm(system_prompt, user_content, model):
-    # Gestione per contenuti misti (testo + immagini per Cox)
     res = client_or.chat.completions.create(
         model=model,
         messages=[{"role": "system", "content": system_prompt}, {"role": "user", "content": user_content}]
@@ -71,7 +70,7 @@ def trascrivi(bot, token, file_id):
         if os.path.exists(fname): os.remove(fname)
 
 def tts(testo, voce):
-    # Rimuoviamo eventuali tag ART o descrizioni tecniche dal parlato
+    # Rimuoviamo il tag ART o comandi tecnici dal parlato per renderlo naturale
     testo_voce = re.sub(r'Word of the day: \w+', '', testo)
     return client_oa.audio.speech.create(model="tts-1", voice=voce, input=testo_voce[:1000]).content
 
@@ -84,7 +83,6 @@ if bot_luna:
             u_text = trascrivi(bot_luna, L_TK, m.voice.file_id) if m.content_type == 'voice' else m.text
             ans = chiedi_llm(PROMPT_LUNA, u_text, "mistralai/mistral-7b-instruct")
             
-            # Salvataggio parola nella memoria
             match = re.search(r'Word of the day: (\w+)', ans, re.IGNORECASE)
             if match: salva_memoria(match.group(1))
             
@@ -92,10 +90,9 @@ if bot_luna:
                 bot_luna.send_voice(cid, tts(ans, "shimmer"))
             else:
                 bot_luna.send_message(cid, ans)
-        except Exception as e:
-            print(f"Errore Luna: {e}")
+        except Exception as e: print(f"Luna Err: {e}")
 
-# --- GESTORE COX ---
+# --- GESTORE COX (Con Vision) ---
 if bot_cox:
     @bot_cox.message_handler(content_types=['text', 'voice', 'photo'])
     def handle_cox(m):
@@ -112,23 +109,22 @@ if bot_cox:
             else:
                 u_text = trascrivi(bot_cox, C_TK, m.voice.file_id) if m.content_type == 'voice' else m.text
                 ans = chiedi_llm(PROMPT_COX, u_text, "google/gemini-flash-1.5")
-
+            
             if m.content_type == 'voice':
                 bot_cox.send_voice(cid, tts(ans, "onyx"))
             else:
                 bot_cox.send_message(cid, ans)
-        except Exception as e:
-            print(f"Errore Cox: {e}")
+        except Exception as e: print(f"Cox Err: {e}")
 
 if __name__ == "__main__":
     threading.Thread(target=lambda: app.run(host='0.0.0.0', port=int(os.environ.get("PORT", 8080))), daemon=True).start()
     
-    # Pulizia Webhook all'avvio per evitare Conflict 409
+    # Avvio pulito dei bot per evitare Conflict 409
     for b in [bot_luna, bot_cox]:
         if b:
             try: b.remove_webhook()
             except: pass
-            time.sleep(1)
+            time.sleep(2)
             threading.Thread(target=b.infinity_polling, kwargs={'timeout': 60, 'non_stop': True}).start()
     
     while True: time.sleep(60)
