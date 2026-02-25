@@ -6,7 +6,7 @@ app = Flask(__name__)
 
 @app.route('/')
 def health():
-    return "Luna V42: Single Mode Active 🔥", 200
+    return "Luna V43: Stable & Sexy 🔥", 200
 
 # --- CONFIGURAZIONE ---
 def clean_token(token_name):
@@ -19,7 +19,6 @@ OA_K = os.environ.get('OPENAI_API_KEY', "").strip()
 client_or = OpenAI(base_url="https://openrouter.ai/api/v1", api_key=OR_K)
 client_oa = OpenAI(api_key=OA_K)
 
-# Inizializziamo solo Luna
 bot_luna = telebot.TeleBot(L_TK) if ":" in L_TK else None
 
 # --- FILE DI MEMORIA ---
@@ -65,7 +64,6 @@ def trascrivi(file_id):
         if os.path.exists(fname): os.remove(fname)
 
 def tts(testo, voce):
-    # Rimuove i tag tecnici per rendere il parlato naturale
     testo_voce = re.sub(r'Word of the day: \w+', '', testo)
     return client_oa.audio.speech.create(model="tts-1", voice=voce, input=testo_voce[:1000]).content
 
@@ -80,11 +78,10 @@ if bot_luna:
             if m.content_type == 'voice':
                 u_text = trascrivi(m.voice.file_id)
             elif m.content_type == 'photo':
-                # Luna può ora "vedere" se le mandi una foto
                 file_info = bot_luna.get_file(m.photo[-1].file_id)
                 img_url = f"https://api.telegram.org/file/bot{L_TK}/{file_info.file_path}"
                 u_text = [
-                    {"type": "text", "text": "Guarda questa foto che ti ho mandato, mivida."}, 
+                    {"type": "text", "text": "Guarda questa foto mivida."}, 
                     {"type": "image_url", "image_url": {"url": img_url}}
                 ]
             else:
@@ -92,29 +89,28 @@ if bot_luna:
 
             ans = chiedi_llm(PROMPT_LUNA, u_text, "mistralai/mistral-7b-instruct")
             
-            # Memoria
             match = re.search(r'Word of the day: (\w+)', ans, re.IGNORECASE)
             if match: salva_memoria(match.group(1))
             
-            # Risposta
             if m.content_type == 'voice':
                 bot_luna.send_voice(cid, tts(ans, "shimmer"))
             else:
                 bot_luna.send_message(cid, ans)
-                # Se vuoi che parli sempre anche via testo, scommenta qui sotto:
-                # bot_luna.send_voice(cid, tts(ans, "shimmer"))
                 
         except Exception as e:
             print(f"Errore: {e}")
 
 if __name__ == "__main__":
-    # Avvio Flask
+    # Avvio Flask su thread separato
     threading.Thread(target=lambda: app.run(host='0.0.0.0', port=int(os.environ.get("PORT", 8080))), daemon=True).start()
     
-    # Avvio Luna pulito
     if bot_luna:
-        try: bot_luna.remove_webhook()
-        except: pass
-        time.sleep(2)
-        print("🚀 Luna V42 Online. Nessun conflitto rilevato.")
-        bot_luna.infinity_polling(timeout=60, non_stop=True)
+        try:
+            bot_luna.remove_webhook()
+            time.sleep(2)
+        except:
+            pass
+        
+        print("🚀 Luna V43 Online. Sistema pronto.")
+        # FIX: rimosso non_stop=True perché infinity_polling lo gestisce da solo
+        bot_luna.infinity_polling(timeout=60)
