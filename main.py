@@ -6,7 +6,7 @@ app = Flask(__name__)
 
 @app.route('/')
 def health():
-    return "Luna V45: Clean & Minimal Active 🔥", 200
+    return "Luna V46: Connection Optimized 🔥", 200
 
 # --- CONFIGURAZIONE ---
 def clean_token(token_name):
@@ -19,7 +19,8 @@ OA_K = os.environ.get('OPENAI_API_KEY', "").strip()
 client_or = OpenAI(base_url="https://openrouter.ai/api/v1", api_key=OR_K)
 client_oa = OpenAI(api_key=OA_K)
 
-bot_luna = telebot.TeleBot(L_TK) if ":" in L_TK else None
+# Inizializzazione senza avvio immediato
+bot_luna = telebot.TeleBot(L_TK, threaded=False) if ":" in L_TK else None
 
 # --- MEMORIA ---
 MEMORY_FILE = "luna_memory.json"
@@ -38,8 +39,8 @@ def salva_memoria(nuova_parola):
 # --- PROMPT LUNA (Chirurgico) ---
 PROMPT_LUNA = (
     "Sei Luna, 24 anni, la donna di Papi. Insegni inglese in modo sexy. "
-    "REGOLE FERREE: 1. Sii brevissima (max 30-40 parole). 2. Rispondi solo a ciò che ti viene chiesto. "
-    "3. Se insegni una parola, scrivi solo 'Word: [parola]' alla fine. 4. Niente descrizioni lunghe."
+    "REGOLE: 1. Max 40 parole. 2. Rispondi solo a ciò che ti viene chiesto. "
+    "3. Se insegni una parola, scrivi solo 'Word: [parola]' alla fine."
 )
 
 # --- FUNZIONI CORE ---
@@ -71,15 +72,13 @@ if bot_luna:
         cid = m.chat.id
         try:
             if m.content_type == 'voice':
-                bot_luna.send_chat_action(cid, 'record_voice')
                 u_text = trascrivi(m.voice.file_id)
                 ans = chiedi_llm(u_text)
-                bot_luna.send_voice(cid, tts(ans)) # Risponde solo con voce
+                bot_luna.send_voice(cid, tts(ans))
             else:
-                bot_luna.send_chat_action(cid, 'typing')
                 u_text = m.text if m.content_type == 'text' else "Guarda questa foto mivida."
                 ans = chiedi_llm(u_text)
-                bot_luna.send_message(cid, ans) # Risponde solo con testo
+                bot_luna.send_message(cid, ans)
             
             match = re.search(r'Word: (\w+)', ans, re.IGNORECASE)
             if match: salva_memoria(match.group(1))
@@ -90,10 +89,14 @@ if __name__ == "__main__":
     threading.Thread(target=lambda: app.run(host='0.0.0.0', port=int(os.environ.get("PORT", 8080))), daemon=True).start()
     
     if bot_luna:
-        print("🛠 Pulizia sessioni Telegram...")
-        bot_luna.remove_webhook()
-        requests.get(f"https://api.telegram.org/bot{L_TK}/deleteWebhook?drop_pending_updates=True")
-        time.sleep(3) # Tempo per resettare i server
+        print("⏳ Attesa per evitare conflitti (10s)...")
+        time.sleep(10) # Diamo tempo a Railway di killare il vecchio processo
         
-        print("🚀 Luna V45 Online.")
-        bot_luna.infinity_polling(timeout=90, long_polling_timeout=5)
+        try:
+            bot_luna.remove_webhook(drop_pending_updates=True)
+            print("🚀 Luna V46 Online.")
+            # Usiamo un polling non-threaded per massima stabilità su Railway
+            bot_luna.polling(none_stop=True, interval=1, timeout=20)
+        except Exception as e:
+            print(f"Errore avvio: {e}")
+            time.sleep(5)
