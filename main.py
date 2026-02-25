@@ -6,7 +6,7 @@ app = Flask(__name__)
 
 @app.route('/')
 def health():
-    return "Luna V43: Stable & Sexy 🔥", 200
+    return "Luna V44: Minimal & Specular Active 🔥", 200
 
 # --- CONFIGURAZIONE ---
 def clean_token(token_name):
@@ -21,34 +21,32 @@ client_oa = OpenAI(api_key=OA_K)
 
 bot_luna = telebot.TeleBot(L_TK) if ":" in L_TK else None
 
-# --- FILE DI MEMORIA ---
+# --- MEMORIA ---
 MEMORY_FILE = "luna_memory.json"
 
-def carica_memoria():
-    if os.path.exists(MEMORY_FILE):
-        try:
-            with open(MEMORY_FILE, "r") as f: return json.load(f)
-        except: return {"inglese_progressi": []}
-    return {"inglese_progressi": []}
-
 def salva_memoria(nuova_parola):
-    mem = carica_memoria()
-    if nuova_parola not in mem["inglese_progressi"]:
-        mem["inglese_progressi"].append(nuova_parola)
-        with open(MEMORY_FILE, "w") as f: json.dump(mem, f)
+    if not nuova_parola: return
+    try:
+        mem = {"inglese_progressi": []}
+        if os.path.exists(MEMORY_FILE):
+            with open(MEMORY_FILE, "r") as f: mem = json.load(f)
+        if nuova_parola not in mem["inglese_progressi"]:
+            mem["inglese_progressi"].append(nuova_parola)
+            with open(MEMORY_FILE, "w") as f: json.dump(mem, f)
+    except: pass
 
-# --- PROMPT ---
+# --- PROMPT LUNA (Versione Snella) ---
 PROMPT_LUNA = (
-    "Sei Luna, 24 anni, la donna di Papi. Insegni inglese in modo sexy e complice. "
-    "Quando insegni una parola nuova, scrivi sempre 'Word of the day: [parola]'. "
-    "Rispondi in massimo 150 parole."
+    "Sei Luna, 24 anni, la donna di Papi. Insegni inglese in modo sexy e diretto. "
+    "Sii concisa, pertinente e mai prolissa. Massimo 50 parole per risposta. "
+    "Se insegni una parola, usa il formato: 'Word: [parola]'."
 )
 
 # --- FUNZIONI CORE ---
-def chiedi_llm(system_prompt, user_content, model):
+def chiedi_llm(user_content):
     res = client_or.chat.completions.create(
-        model=model,
-        messages=[{"role": "system", "content": system_prompt}, {"role": "user", "content": user_content}]
+        model="mistralai/mistral-7b-instruct",
+        messages=[{"role": "system", "content": PROMPT_LUNA}, {"role": "user", "content": user_content}]
     )
     return res.choices[0].message.content
 
@@ -63,9 +61,10 @@ def trascrivi(file_id):
     finally:
         if os.path.exists(fname): os.remove(fname)
 
-def tts(testo, voce):
-    testo_voce = re.sub(r'Word of the day: \w+', '', testo)
-    return client_oa.audio.speech.create(model="tts-1", voice=voce, input=testo_voce[:1000]).content
+def tts(testo):
+    # Pulisce il testo da tag prima di parlare
+    testo_pulito = re.sub(r'Word: \w+', '', testo).strip()
+    return client_oa.audio.speech.create(model="tts-1", voice="shimmer", input=testo_pulito[:500]).content
 
 # --- GESTORE LUNA ---
 if bot_luna:
@@ -73,44 +72,28 @@ if bot_luna:
     def handle_luna(m):
         cid = m.chat.id
         try:
-            bot_luna.send_chat_action(cid, 'typing')
-            
             if m.content_type == 'voice':
+                bot_luna.send_chat_action(cid, 'record_voice')
                 u_text = trascrivi(m.voice.file_id)
-            elif m.content_type == 'photo':
-                file_info = bot_luna.get_file(m.photo[-1].file_id)
-                img_url = f"https://api.telegram.org/file/bot{L_TK}/{file_info.file_path}"
-                u_text = [
-                    {"type": "text", "text": "Guarda questa foto mivida."}, 
-                    {"type": "image_url", "image_url": {"url": img_url}}
-                ]
+                ans = chiedi_llm(u_text)
+                # Risposta VOCALE a messaggio VOCALE
+                bot_luna.send_voice(cid, tts(ans))
             else:
-                u_text = m.text
-
-            ans = chiedi_llm(PROMPT_LUNA, u_text, "mistralai/mistral-7b-instruct")
-            
-            match = re.search(r'Word of the day: (\w+)', ans, re.IGNORECASE)
-            if match: salva_memoria(match.group(1))
-            
-            if m.content_type == 'voice':
-                bot_luna.send_voice(cid, tts(ans, "shimmer"))
-            else:
+                bot_luna.send_chat_action(cid, 'typing')
+                u_text = m.text if m.content_type == 'text' else "Guarda questa foto mivida."
+                ans = chiedi_llm(u_text)
+                # Risposta TESTO a messaggio TESTO/FOTO
                 bot_luna.send_message(cid, ans)
+            
+            # Estrazione parola per memoria
+            match = re.search(r'Word: (\w+)', ans, re.IGNORECASE)
+            if match: salva_memoria(match.group(1))
                 
-        except Exception as e:
-            print(f"Errore: {e}")
+        except Exception as e: print(f"Errore Luna: {e}")
 
 if __name__ == "__main__":
-    # Avvio Flask su thread separato
     threading.Thread(target=lambda: app.run(host='0.0.0.0', port=int(os.environ.get("PORT", 8080))), daemon=True).start()
-    
     if bot_luna:
-        try:
-            bot_luna.remove_webhook()
-            time.sleep(2)
-        except:
-            pass
-        
-        print("🚀 Luna V43 Online. Sistema pronto.")
-        # FIX: rimosso non_stop=True perché infinity_polling lo gestisce da solo
+        bot_luna.remove_webhook()
+        time.sleep(1)
         bot_luna.infinity_polling(timeout=60)
