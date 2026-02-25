@@ -6,7 +6,7 @@ app = Flask(__name__)
 
 @app.route('/')
 def health():
-    return "Luna & Cox V37: Active", 200
+    return "Luna & Cox V39: Active", 200
 
 def clean_token(token_name):
     t = os.environ.get(token_name, "").strip()
@@ -23,151 +23,128 @@ client_oa = OpenAI(api_key=OA_K)
 bot_luna = telebot.TeleBot(L_TK) if ":" in L_TK else None
 bot_cox  = telebot.TeleBot(C_TK) if ":" in C_TK else None
 
-LUNA_DNA    = "stunning 24yo woman, long dark hair, tanned skin, hazel eyes, elegant but sensual, photorealistic, high quality portrait"
-PROMPT_LUNA = "Tu sei Luna, 24 anni. Sei la donna di Papi. Insegnali inglese con stile sexy."
-PROMPT_COX  = "Sei il Dottor Perry Cox. Sei un genio veterinario brutale e acido. Usa nomignoli femminili."
-FOTO_KW     = ["foto", "selfie", "mostrami", "mandami", "picture", "show me", "fatti vedere"]
+PROMPT_LUNA = "Tu sei Luna, 24 anni. Sei la donna di Papi. Insegnali inglese con stile sexy. Rispondi in massimo 150 parole."
+PROMPT_COX  = "Sei il Dottor Perry Cox. Sei un genio veterinario brutale e acido. Usa nomignoli femminili. Rispondi in massimo 150 parole."
 
 
-def invia_voce(target_bot, cid, testo, voce):
-    try:
-        r = client_oa.audio.speech.create(model="tts-1", voice=voce, input=testo)
-        target_bot.send_voice(cid, r.content)
-    except Exception as e:
-        print(f"[VOCE ERROR] {e}")
+def chiedi_llm(system_prompt, user_text, model):
+    res = client_or.chat.completions.create(
+        model=model,
+        max_tokens=300,
+        messages=[
+            {"role": "system", "content": system_prompt},
+            {"role": "user",   "content": user_text}
+        ]
+    )
+    return res.choices[0].message.content
 
 
-def invia_foto(target_bot, cid, prompt):
-    try:
-        r = client_oa.images.generate(model="dall-e-3", prompt=prompt, size="1024x1024", n=1)
-        target_bot.send_photo(cid, r.data[0].url)
-    except Exception as e:
-        print(f"[FOTO ERROR] {e}")
-
-
-# Ritorna stringa se ok, None se fallisce
 def trascrivi(bot, token, file_id):
     fname = f"/tmp/voice_{abs(hash(file_id))}.ogg"
     try:
         file_info = bot.get_file(file_id)
-        print(f"[VOICE] file_path: {file_info.file_path}")
         url = f"https://api.telegram.org/file/bot{token}/{file_info.file_path}"
         resp = requests.get(url, timeout=30)
-        print(f"[VOICE] status: {resp.status_code}, size: {len(resp.content)}")
         if resp.status_code != 200 or len(resp.content) == 0:
-            print("[VOICE] Download fallito")
             return None
         with open(fname, "wb") as f:
             f.write(resp.content)
         with open(fname, "rb") as f:
-            result = client_oa.audio.transcriptions.create(model="whisper-1", file=f)
-        print(f"[VOICE] Trascrizione OK: {result.text}")
-        return result.text
+            return client_oa.audio.transcriptions.create(model="whisper-1", file=f).text
     except Exception as e:
-        print(f"[TRASCRIZIONE ERROR] {type(e).__name__}: {e}")
+        print(f"[WHISPER ERROR] {e}")
         return None
     finally:
         if os.path.exists(fname):
             os.remove(fname)
 
 
+def tts(testo, voce):
+    r = client_oa.audio.speech.create(model="tts-1", voice=voce, input=testo[:1000])
+    return r.content
+
+
+# --- LUNA ---
 if bot_luna:
     @bot_luna.message_handler(content_types=['text', 'voice'])
     def handle_luna(m):
         cid = m.chat.id
-        print(f"[LUNA] tipo={m.content_type}")
-
-        if m.content_type == 'voice':
-            bot_luna.send_chat_action(cid, 'typing')
-            u_text = trascrivi(bot_luna, L_TK, m.voice.file_id)
-            if u_text is None:
-                # STOP - non mandare nulla all'LLM
-                bot_luna.send_message(cid, "Non ho capito il vocale, ripeti papi 🥺")
-                return
-        else:
-            u_text = m.text or "Ciao"
-
-        print(f"[LUNA] input: {u_text}")
         try:
-            res = client_or.chat.completions.create(
-                model="mistralai/mistral-7b-instruct",
-                messages=[
-                    {"role": "system", "content": PROMPT_LUNA},
-                    {"role": "user",   "content": u_text}
-                ]
-            )
-            ans = res.choices[0].message.content
+            if m.content_type == 'voice':
+                bot_luna.send_chat_action(cid, 'record_voice')
+                u_text = trascrivi(bot_luna, L_TK, m.voice.file_id)
+                if not u_text:
+                    bot_luna.send_message(cid, "Non ho capito, ripeti papi 🥺")
+                    return
+                ans = chiedi_llm(PROMPT_LUNA, u_text, "mistralai/mistral-7b-instruct")
+                audio = tts(ans, "shimmer")
+                bot_luna.send_voice(cid, audio)
+
+            else:
+                bot_luna.send_chat_action(cid, 'typing')
+                ans = chiedi_llm(PROMPT_LUNA, m.text or "Ciao", "mistralai/mistral-7b-instruct")
+                bot_luna.send_message(cid, ans)
+
         except Exception as e:
-            print(f"[LLM LUNA ERROR] {e}")
-            ans = "Scusa papi, problemi tecnici 🥺"
-
-        bot_luna.send_message(cid, ans)
-        threading.Thread(target=invia_voce, args=(bot_luna, cid, ans, "shimmer"), daemon=True).start()
-        if any(kw in u_text.lower() for kw in FOTO_KW):
-            threading.Thread(target=invia_foto, args=(bot_luna, cid, LUNA_DNA), daemon=True).start()
+            print(f"[LUNA ERROR] {e}")
+            bot_luna.send_message(cid, "Errore, riprova papi 🥺")
 
 
+# --- COX ---
 if bot_cox:
     @bot_cox.message_handler(content_types=['text', 'voice'])
     def handle_cox(m):
         cid = m.chat.id
-        print(f"[COX] tipo={m.content_type}")
-
-        if m.content_type == 'voice':
-            bot_cox.send_chat_action(cid, 'typing')
-            u_text = trascrivi(bot_cox, C_TK, m.voice.file_id)
-            if u_text is None:
-                # STOP - non mandare nulla all'LLM
-                bot_cox.send_message(cid, "Non ho capito il vocale, Fernanda. Riprova.")
-                return
-        else:
-            u_text = m.text or "Analizza"
-
-        print(f"[COX] input: {u_text}")
         try:
-            res = client_or.chat.completions.create(
-                model="google/gemini-flash-1.5",
-                messages=[
-                    {"role": "system", "content": PROMPT_COX},
-                    {"role": "user",   "content": u_text}
-                ]
-            )
-            ans = res.choices[0].message.content
+            if m.content_type == 'voice':
+                bot_cox.send_chat_action(cid, 'record_voice')
+                u_text = trascrivi(bot_cox, C_TK, m.voice.file_id)
+                if not u_text:
+                    bot_cox.send_message(cid, "Non ho capito, Fernanda. Riprova.")
+                    return
+                ans = chiedi_llm(PROMPT_COX, u_text, "google/gemini-flash-1.5")
+                audio = tts(ans, "onyx")
+                bot_cox.send_voice(cid, audio)
+
+            else:
+                bot_cox.send_chat_action(cid, 'typing')
+                ans = chiedi_llm(PROMPT_COX, m.text or "Ciao", "google/gemini-flash-1.5")
+                bot_cox.send_message(cid, ans)
+
         except Exception as e:
-            print(f"[LLM COX ERROR] {e}")
-            ans = "Sistema in manutenzione. Torna dopo, Lucinda."
-
-        bot_cox.send_message(cid, ans)
-        threading.Thread(target=invia_voce, args=(bot_cox, cid, ans, "onyx"), daemon=True).start()
+            print(f"[COX ERROR] {e}")
+            bot_cox.send_message(cid, "Errore di sistema, Lucinda.")
 
 
+# --- MAIN ---
 if __name__ == "__main__":
-    print(f"[INIT] Luna: {'OK' if bot_luna else 'MANCA TOKEN'}")
-    print(f"[INIT] Cox:  {'OK' if bot_cox else 'MANCA TOKEN'}")
-    print(f"[INIT] OpenAI: {'OK' if OA_K else 'MANCA KEY'}")
-    print(f"[INIT] OpenRouter: {'OK' if OR_K else 'MANCA KEY'}")
-
     threading.Thread(
         target=lambda: app.run(host='0.0.0.0', port=int(os.environ.get("PORT", 8080))),
         daemon=True
     ).start()
 
     if bot_luna:
-        bot_luna.remove_webhook()
-        time.sleep(1)
+        try:
+            bot_luna.remove_webhook()
+        except Exception:
+            pass
+        time.sleep(2)
         threading.Thread(
             target=bot_luna.polling,
-            kwargs={'timeout': 60, 'non_stop': True},
+            kwargs={'timeout': 60, 'non_stop': True, 'skip_pending': True},
             daemon=True
         ).start()
         print("Luna Online")
 
     if bot_cox:
-        bot_cox.remove_webhook()
-        time.sleep(1)
+        try:
+            bot_cox.remove_webhook()
+        except Exception:
+            pass
+        time.sleep(2)
         threading.Thread(
             target=bot_cox.polling,
-            kwargs={'timeout': 60, 'non_stop': True},
+            kwargs={'timeout': 60, 'non_stop': True, 'skip_pending': True},
             daemon=True
         ).start()
         print("Cox Online")
