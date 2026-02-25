@@ -1,4 +1,4 @@
-import os, telebot, threading, time, requests
+import os, telebot, threading, time, requests, json
 from openai import OpenAI
 from flask import Flask
 
@@ -6,11 +6,11 @@ app = Flask(__name__)
 
 @app.route('/')
 def health():
-    return "Luna & Cox V39: Active", 200
+    return "Luna & Cox V40: Vision & Memory Active 🔥", 200
 
+# --- CONFIGURAZIONE ---
 def clean_token(token_name):
-    t = os.environ.get(token_name, "").strip()
-    return t.replace("'", "").replace('"', "")
+    return os.environ.get(token_name, "").strip().replace("'", "").replace('"', "")
 
 L_TK = clean_token('TOKEN_LUNA')
 C_TK = clean_token('TOKEN_COX')
@@ -23,122 +23,85 @@ client_oa = OpenAI(api_key=OA_K)
 bot_luna = telebot.TeleBot(L_TK) if ":" in L_TK else None
 bot_cox  = telebot.TeleBot(C_TK) if ":" in C_TK else None
 
-PROMPT_LUNA = "Tu sei Luna, 24 anni. Sei la donna di Papi. Insegnali inglese con stile sexy. Rispondi in massimo 150 parole."
-PROMPT_COX  = "Sei il Dottor Perry Cox. Sei un genio veterinario brutale e acido. Usa nomignoli femminili. Rispondi in massimo 150 parole."
+# --- FILE DI MEMORIA ---
+MEMORY_FILE = "luna_memory.json"
 
+def carica_memoria():
+    if os.path.exists(MEMORY_FILE):
+        with open(MEMORY_FILE, "r") as f: return json.load(f)
+    return {"inglese_progressi": []}
 
-def chiedi_llm(system_prompt, user_text, model):
+def salva_memoria(nuova_parola):
+    mem = carica_memoria()
+    if nuova_parola not in mem["inglese_progressi"]:
+        mem["inglese_progressi"].append(nuova_parola)
+        with open(MEMORY_FILE, "w") as f: json.dump(mem, f)
+
+# --- PROMPTS ---
+PROMPT_LUNA = "Sei Luna, 24 anni, la donna di Papi. Insegni inglese in modo sexy. Salva le parole nuove. Max 150 parole."
+PROMPT_COX  = "Sei il Dr. Perry Cox. Genio veterinario acido. Se ricevi una foto, analizzala clinicamente. Max 150 parole."
+
+# --- FUNZIONI CORE ---
+def chiedi_llm(system_prompt, user_content, model):
     res = client_or.chat.completions.create(
         model=model,
-        max_tokens=300,
-        messages=[
-            {"role": "system", "content": system_prompt},
-            {"role": "user",   "content": user_text}
-        ]
+        messages=[{"role": "system", "content": system_prompt}, {"role": "user", "content": user_content}]
     )
     return res.choices[0].message.content
 
-
 def trascrivi(bot, token, file_id):
-    fname = f"/tmp/voice_{abs(hash(file_id))}.ogg"
-    try:
-        file_info = bot.get_file(file_id)
-        url = f"https://api.telegram.org/file/bot{token}/{file_info.file_path}"
-        resp = requests.get(url, timeout=30)
-        if resp.status_code != 200 or len(resp.content) == 0:
-            return None
-        with open(fname, "wb") as f:
-            f.write(resp.content)
-        with open(fname, "rb") as f:
-            return client_oa.audio.transcriptions.create(model="whisper-1", file=f).text
-    except Exception as e:
-        print(f"[WHISPER ERROR] {e}")
-        return None
-    finally:
-        if os.path.exists(fname):
-            os.remove(fname)
-
+    fname = f"/tmp/voice_{file_id}.ogg"
+    file_info = bot.get_file(file_id)
+    url = f"https://api.telegram.org/file/bot{token}/{file_info.file_path}"
+    with open(fname, "wb") as f: f.write(requests.get(url).content)
+    with open(fname, "rb") as f:
+        return client_oa.audio.transcriptions.create(model="whisper-1", file=f).text
 
 def tts(testo, voce):
-    r = client_oa.audio.speech.create(model="tts-1", voice=voce, input=testo[:1000])
-    return r.content
+    return client_oa.audio.speech.create(model="tts-1", voice=voce, input=testo[:1000]).content
 
-
+# --- GESTORE LUNA ---
 if bot_luna:
     @bot_luna.message_handler(content_types=['text', 'voice'])
     def handle_luna(m):
         cid = m.chat.id
-        try:
-            if m.content_type == 'voice':
-                bot_luna.send_chat_action(cid, 'record_voice')
-                u_text = trascrivi(bot_luna, L_TK, m.voice.file_id)
-                if not u_text:
-                    bot_luna.send_message(cid, "Non ho capito, ripeti papi 🥺")
-                    return
-                ans = chiedi_llm(PROMPT_LUNA, u_text, "mistralai/mistral-7b-instruct")
-                bot_luna.send_voice(cid, tts(ans, "shimmer"))
-            else:
-                bot_luna.send_chat_action(cid, 'typing')
-                ans = chiedi_llm(PROMPT_LUNA, m.text or "Ciao", "mistralai/mistral-7b-instruct")
-                bot_luna.send_message(cid, ans)
-        except Exception as e:
-            print(f"[LUNA ERROR] {e}")
-            bot_luna.send_message(cid, "Errore, riprova papi 🥺")
+        u_text = trascrivi(bot_luna, L_TK, m.voice.file_id) if m.content_type == 'voice' else m.text
+        ans = chiedi_llm(PROMPT_LUNA, u_text, "mistralai/mistral-7b-instruct")
+        
+        # Logica per estrarre parole inglesi (esempio semplice)
+        match = re.search(r'word of the day: (\w+)', ans.lower())
+        if match: salva_memoria(match.group(1))
+        
+        if m.content_type == 'voice':
+            bot_luna.send_voice(cid, tts(ans, "shimmer"))
+        else:
+            bot_luna.send_message(cid, ans)
 
-
+# --- GESTORE COX (Con Vision) ---
 if bot_cox:
-    @bot_cox.message_handler(content_types=['text', 'voice'])
+    @bot_cox.message_handler(content_types=['text', 'voice', 'photo'])
     def handle_cox(m):
         cid = m.chat.id
-        try:
-            if m.content_type == 'voice':
-                bot_cox.send_chat_action(cid, 'record_voice')
-                u_text = trascrivi(bot_cox, C_TK, m.voice.file_id)
-                if not u_text:
-                    bot_cox.send_message(cid, "Non ho capito, Fernanda. Riprova.")
-                    return
-                ans = chiedi_llm(PROMPT_COX, u_text, "google/gemini-flash-1.5")
-                bot_cox.send_voice(cid, tts(ans, "onyx"))
-            else:
-                bot_cox.send_chat_action(cid, 'typing')
-                ans = chiedi_llm(PROMPT_COX, m.text or "Ciao", "google/gemini-flash-1.5")
-                bot_cox.send_message(cid, ans)
-        except Exception as e:
-            print(f"[COX ERROR] {e}")
-            bot_cox.send_message(cid, "Errore di sistema, Lucinda.")
+        content = []
+        
+        if m.content_type == 'photo':
+            file_info = bot_cox.get_file(m.photo[-1].file_id)
+            img_url = f"https://api.telegram.org/file/bot{C_TK}/{file_info.file_path}"
+            content = [{"type": "text", "text": "Analizza questa immagine clinica, Boia!"}, 
+                       {"type": "image_url", "image_url": {"url": img_url}}]
+        else:
+            u_text = trascrivi(bot_cox, C_TK, m.voice.file_id) if m.content_type == 'voice' else m.text
+            content = u_text
 
+        ans = chiedi_llm(PROMPT_COX, content, "google/gemini-flash-1.5")
+        
+        if m.content_type == 'voice':
+            bot_cox.send_voice(cid, tts(ans, "onyx"))
+        else:
+            bot_cox.send_message(cid, ans)
 
 if __name__ == "__main__":
-    threading.Thread(
-        target=lambda: app.run(host='0.0.0.0', port=int(os.environ.get("PORT", 8080))),
-        daemon=True
-    ).start()
-
-    if bot_luna:
-        try:
-            bot_luna.remove_webhook()
-        except Exception:
-            pass
-        time.sleep(5)
-        threading.Thread(
-            target=bot_luna.polling,
-            kwargs={'timeout': 60, 'non_stop': True},
-            daemon=True
-        ).start()
-        print("Luna Online")
-
-    if bot_cox:
-        try:
-            bot_cox.remove_webhook()
-        except Exception:
-            pass
-        time.sleep(5)
-        threading.Thread(
-            target=bot_cox.polling,
-            kwargs={'timeout': 60, 'non_stop': True},
-            daemon=True
-        ).start()
-        print("Cox Online")
-
-    while True:
-        time.sleep(60)
+    threading.Thread(target=lambda: app.run(host='0.0.0.0', port=int(os.environ.get("PORT", 8080))), daemon=True).start()
+    if bot_luna: threading.Thread(target=bot_luna.infinity_polling).start()
+    if bot_cox: threading.Thread(target=bot_cox.infinity_polling).start()
+    while True: time.sleep(60)
