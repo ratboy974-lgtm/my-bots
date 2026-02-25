@@ -2,13 +2,13 @@ import os, telebot, threading, time, requests, json, re
 from openai import OpenAI
 from flask import Flask
 
+# --- INIZIALIZZAZIONE ---
 app = Flask(__name__)
 
 @app.route('/')
 def health():
-    return "Luna V47: Connection Fixed 🔥", 200
+    return "Luna V47 Blindata: Stable & Minimal 🔥", 200
 
-# --- CONFIGURAZIONE ---
 def clean_token(token_name):
     return os.environ.get(token_name, "").strip().replace("'", "").replace('"', "")
 
@@ -19,10 +19,10 @@ OA_K = os.environ.get('OPENAI_API_KEY', "").strip()
 client_or = OpenAI(base_url="https://openrouter.ai/api/v1", api_key=OR_K)
 client_oa = OpenAI(api_key=OA_K)
 
-# Inizializziamo senza thread per evitare conflitti multipli
+# Blindato: threaded=False evita che i messaggi si sovrappongano
 bot_luna = telebot.TeleBot(L_TK, threaded=False) if ":" in L_TK else None
 
-# --- MEMORIA ---
+# --- MEMORIA (JSON) ---
 MEMORY_FILE = "luna_memory.json"
 
 def salva_memoria(nuova_parola):
@@ -36,14 +36,15 @@ def salva_memoria(nuova_parola):
             with open(MEMORY_FILE, "w") as f: json.dump(mem, f)
     except: pass
 
-# --- PROMPT LUNA (Snello) ---
+# --- PROMPT CHIRURGICO ---
 PROMPT_LUNA = (
-    "Sei Luna, 24 anni, la donna di Papi. Insegni inglese in modo sexy. "
-    "REGOLE: Max 40 parole. Rispondi solo a ciò che ti viene chiesto. "
-    "Se insegni una parola, scrivi solo 'Word: [parola]' alla fine."
+    "Sei Luna, la donna di Papi. Insegni inglese in modo sexy. "
+    "RISPOSTA: Brevissima (max 30 parole), pertinente, mai prolissa. "
+    "SPECULARITÀ: Se ricevi testo, rispondi con testo. Se ricevi vocale, rispondi con vocale. "
+    "FORMATO: 'Word: [parola]' solo se insegni qualcosa."
 )
 
-# --- FUNZIONI CORE ---
+# --- LOGICA CORE ---
 def chiedi_llm(user_content):
     res = client_or.chat.completions.create(
         model="mistralai/mistral-7b-instruct",
@@ -62,40 +63,42 @@ def trascrivi(file_id):
     return txt
 
 def tts(testo):
+    # Rimuove tag tecnici dall'audio
     testo_pulito = re.sub(r'Word: \w+', '', testo).strip()
     return client_oa.audio.speech.create(model="tts-1", voice="shimmer", input=testo_pulito).content
 
-# --- GESTORE LUNA ---
+# --- GESTORE EVENTI ---
 if bot_luna:
     @bot_luna.message_handler(content_types=['text', 'voice', 'photo'])
     def handle_luna(m):
         cid = m.chat.id
         try:
             if m.content_type == 'voice':
+                bot_luna.send_chat_action(cid, 'record_voice')
                 u_text = trascrivi(m.voice.file_id)
                 ans = chiedi_llm(u_text)
-                bot_luna.send_voice(cid, tts(ans))
+                bot_luna.send_voice(cid, tts(ans)) # Vocale -> Vocale
             else:
-                u_text = m.text if m.content_type == 'text' else "Guarda questa foto mivida."
+                bot_luna.send_chat_action(cid, 'typing')
+                u_text = m.text if m.content_type == 'text' else "Mivida, guarda questa foto."
                 ans = chiedi_llm(u_text)
-                bot_luna.send_message(cid, ans)
+                bot_luna.send_message(cid, ans) # Testo -> Testo
             
             match = re.search(r'Word: (\w+)', ans, re.IGNORECASE)
             if match: salva_memoria(match.group(1))
-        except Exception as e: print(f"Err: {e}")
+        except Exception as e:
+            print(f"Errore: {e}")
 
+# --- AVVIO PROTETTO ---
 if __name__ == "__main__":
-    # Flask in background
     threading.Thread(target=lambda: app.run(host='0.0.0.0', port=int(os.environ.get("PORT", 8080))), daemon=True).start()
     
     if bot_luna:
-        print("⏳ Attesa 10s per pulizia server...")
-        time.sleep(10)
-        
+        print("⏳ Stabilizzazione connessione...")
+        time.sleep(10) # Pausa critica per Railway
         try:
-            # FIX: Metodo corretto per pulire i messaggi pendenti
             bot_luna.delete_webhook(drop_pending_updates=True)
-            print("🚀 Luna V47 Online.")
+            print("🚀 LUNA V47 BLINDATA ONLINE.")
             bot_luna.polling(none_stop=True, interval=1, timeout=20)
         except Exception as e:
-            print(f"Errore critico: {e}")
+            print(f"Riavvio necessario: {e}")
