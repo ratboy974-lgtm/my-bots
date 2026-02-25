@@ -6,7 +6,7 @@ app = Flask(__name__)
 
 @app.route('/')
 def health():
-    return "Luna & Cox V36: Active", 200
+    return "Luna & Cox V37: Active", 200
 
 def clean_token(token_name):
     t = os.environ.get(token_name, "").strip()
@@ -43,10 +43,10 @@ def invia_foto(target_bot, cid, prompt):
         target_bot.send_photo(cid, r.data[0].url)
     except Exception as e:
         print(f"[FOTO ERROR] {e}")
-        target_bot.send_message(cid, "Errore foto.")
 
 
-def trascrivi(bot, token, file_id, fallback):
+# Ritorna stringa se ok, None se fallisce
+def trascrivi(bot, token, file_id):
     fname = f"/tmp/voice_{abs(hash(file_id))}.ogg"
     try:
         file_info = bot.get_file(file_id)
@@ -56,16 +56,16 @@ def trascrivi(bot, token, file_id, fallback):
         print(f"[VOICE] status: {resp.status_code}, size: {len(resp.content)}")
         if resp.status_code != 200 or len(resp.content) == 0:
             print("[VOICE] Download fallito")
-            return fallback
+            return None
         with open(fname, "wb") as f:
             f.write(resp.content)
         with open(fname, "rb") as f:
             result = client_oa.audio.transcriptions.create(model="whisper-1", file=f)
-        print(f"[VOICE] Trascrizione: {result.text}")
+        print(f"[VOICE] Trascrizione OK: {result.text}")
         return result.text
     except Exception as e:
         print(f"[TRASCRIZIONE ERROR] {type(e).__name__}: {e}")
-        return fallback
+        return None
     finally:
         if os.path.exists(fname):
             os.remove(fname)
@@ -76,11 +76,17 @@ if bot_luna:
     def handle_luna(m):
         cid = m.chat.id
         print(f"[LUNA] tipo={m.content_type}")
+
         if m.content_type == 'voice':
             bot_luna.send_chat_action(cid, 'typing')
-            u_text = trascrivi(bot_luna, L_TK, m.voice.file_id, "Ti ascolto, papi...")
+            u_text = trascrivi(bot_luna, L_TK, m.voice.file_id)
+            if u_text is None:
+                # STOP - non mandare nulla all'LLM
+                bot_luna.send_message(cid, "Non ho capito il vocale, ripeti papi 🥺")
+                return
         else:
             u_text = m.text or "Ciao"
+
         print(f"[LUNA] input: {u_text}")
         try:
             res = client_or.chat.completions.create(
@@ -93,7 +99,8 @@ if bot_luna:
             ans = res.choices[0].message.content
         except Exception as e:
             print(f"[LLM LUNA ERROR] {e}")
-            ans = "Scusa papi, ho avuto un problemino... 🥺"
+            ans = "Scusa papi, problemi tecnici 🥺"
+
         bot_luna.send_message(cid, ans)
         threading.Thread(target=invia_voce, args=(bot_luna, cid, ans, "shimmer"), daemon=True).start()
         if any(kw in u_text.lower() for kw in FOTO_KW):
@@ -105,11 +112,17 @@ if bot_cox:
     def handle_cox(m):
         cid = m.chat.id
         print(f"[COX] tipo={m.content_type}")
+
         if m.content_type == 'voice':
             bot_cox.send_chat_action(cid, 'typing')
-            u_text = trascrivi(bot_cox, C_TK, m.voice.file_id, "Analizza questo.")
+            u_text = trascrivi(bot_cox, C_TK, m.voice.file_id)
+            if u_text is None:
+                # STOP - non mandare nulla all'LLM
+                bot_cox.send_message(cid, "Non ho capito il vocale, Fernanda. Riprova.")
+                return
         else:
             u_text = m.text or "Analizza"
+
         print(f"[COX] input: {u_text}")
         try:
             res = client_or.chat.completions.create(
@@ -123,6 +136,7 @@ if bot_cox:
         except Exception as e:
             print(f"[LLM COX ERROR] {e}")
             ans = "Sistema in manutenzione. Torna dopo, Lucinda."
+
         bot_cox.send_message(cid, ans)
         threading.Thread(target=invia_voce, args=(bot_cox, cid, ans, "onyx"), daemon=True).start()
 
