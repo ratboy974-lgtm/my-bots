@@ -6,7 +6,7 @@ app = Flask(__name__)
 
 @app.route('/')
 def health():
-    return "Luna V46: Connection Optimized 🔥", 200
+    return "Luna V47: Connection Fixed 🔥", 200
 
 # --- CONFIGURAZIONE ---
 def clean_token(token_name):
@@ -19,7 +19,7 @@ OA_K = os.environ.get('OPENAI_API_KEY', "").strip()
 client_or = OpenAI(base_url="https://openrouter.ai/api/v1", api_key=OR_K)
 client_oa = OpenAI(api_key=OA_K)
 
-# Inizializzazione senza avvio immediato
+# Inizializziamo senza thread per evitare conflitti multipli
 bot_luna = telebot.TeleBot(L_TK, threaded=False) if ":" in L_TK else None
 
 # --- MEMORIA ---
@@ -36,11 +36,11 @@ def salva_memoria(nuova_parola):
             with open(MEMORY_FILE, "w") as f: json.dump(mem, f)
     except: pass
 
-# --- PROMPT LUNA (Chirurgico) ---
+# --- PROMPT LUNA (Snello) ---
 PROMPT_LUNA = (
     "Sei Luna, 24 anni, la donna di Papi. Insegni inglese in modo sexy. "
-    "REGOLE: 1. Max 40 parole. 2. Rispondi solo a ciò che ti viene chiesto. "
-    "3. Se insegni una parola, scrivi solo 'Word: [parola]' alla fine."
+    "REGOLE: Max 40 parole. Rispondi solo a ciò che ti viene chiesto. "
+    "Se insegni una parola, scrivi solo 'Word: [parola]' alla fine."
 )
 
 # --- FUNZIONI CORE ---
@@ -89,14 +89,13 @@ if __name__ == "__main__":
     threading.Thread(target=lambda: app.run(host='0.0.0.0', port=int(os.environ.get("PORT", 8080))), daemon=True).start()
     
     if bot_luna:
-        print("⏳ Attesa per evitare conflitti (10s)...")
-        time.sleep(10) # Diamo tempo a Railway di killare il vecchio processo
+        print("⏳ Attesa 10s per pulizia server...")
+        time.sleep(10)
         
         try:
-            bot_luna.remove_webhook(drop_pending_updates=True)
-            print("🚀 Luna V46 Online.")
-            # Usiamo un polling non-threaded per massima stabilità su Railway
+            # FIX: Metodo corretto per pulire i messaggi pendenti
+            bot_luna.delete_webhook(drop_pending_updates=True)
+            print("🚀 Luna V47 Online.")
             bot_luna.polling(none_stop=True, interval=1, timeout=20)
         except Exception as e:
-            print(f"Errore avvio: {e}")
-            time.sleep(5)
+            print(f"Errore critico: {e}")
