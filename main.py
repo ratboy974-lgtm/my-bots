@@ -1,4 +1,4 @@
-import os, telebot, threading, time, requests, json, re
+import os, telebot, threading, time, requests, json, re, io
 from openai import OpenAI
 from flask import Flask
 
@@ -6,7 +6,7 @@ app = Flask(__name__)
 
 @app.route('/')
 def health():
-    return "Luna V63: Everything Fixed & Active 🚀", 200
+    return "Luna V64: Photo & Voice Delivery Active 🚀", 200
 
 # --- CONFIGURAZIONE ---
 def clean_token(token_name):
@@ -22,13 +22,12 @@ client_oa = OpenAI(api_key=OA_K)
 
 bot_luna = telebot.TeleBot(L_TK, threaded=False) if ":" in L_TK else None
 
-# --- FUNZIONE GENERAZIONE IMMAGINE (FAL.AI / FLUX) ---
+# --- GENERAZIONE E INVIO SICURO (FAL.AI) ---
 def genera_immagine_fal(prompt_utente):
-    if not FAL_K: return "ERRORE: Configura FAL_KEY su Railway!"
+    if not FAL_K: return None, "ERRORE: Configura FAL_KEY su Railway!"
     url = "https://fal.run/fal-ai/flux/dev"
     headers = {"Authorization": f"Key {FAL_K}", "Content-Type": "application/json"}
     
-    # Formato square_hd per la massima compatibilità con l'API
     payload = {
         "prompt": (
             f"A hyper-realistic RAW photo of Luna, a beautiful 24-year-old Italian girl, "
@@ -40,12 +39,17 @@ def genera_immagine_fal(prompt_utente):
     }
     
     try:
-        res = requests.post(url, headers=headers, json=payload, timeout=60)
+        # Timeout alzato a 90 secondi per Flux
+        res = requests.post(url, headers=headers, json=payload, timeout=90)
         if res.status_code == 200:
-            return res.json()['images'][0]['url']
+            img_url = res.json()['images'][0]['url']
+            # Scarichiamo l'immagine per inviarla come file fisico
+            img_data = requests.get(img_url, timeout=30).content
+            return io.BytesIO(img_data), None
         else:
-            return f"Errore API {res.status_code}: {res.text[:100]}"
-    except Exception as e: return f"Errore: {str(e)}"
+            return None, f"Errore API {res.status_code}: {res.text[:100]}"
+    except Exception as e:
+        return None, f"Errore Connessione: {str(e)}"
 
 # --- FUNZIONI AUDIO ---
 def trascrivi(file_id):
@@ -59,6 +63,7 @@ def trascrivi(file_id):
     return txt
 
 def tts(testo):
+    # Rimuoviamo i Word of the Day dal parlato per fluidità
     p = re.sub(r'Word: \w+', '', testo).strip()
     return client_oa.audio.speech.create(model="tts-1", voice="shimmer", input=p).content
 
@@ -84,40 +89,47 @@ if bot_luna:
         keywords_foto = ["foto", "vederti", "pic", "photo", "immagine", "selfie"]
         
         try:
-            # Bypass per Foto
+            # 1. Bypass per Richiesta Foto
             if m.content_type == 'text' and any(k in testo_l for k in keywords_foto):
                 bot_luna.send_message(cid, "Mi preparo per te mivida... 😉")
                 bot_luna.send_chat_action(cid, 'upload_photo')
-                url = genera_immagine_fal(m.text)
-                if url.startswith("http"): bot_luna.send_photo(cid, url)
-                else: bot_luna.send_message(cid, f"Problema: {url}")
+                
+                img_file, errore = genera_immagine_fal(m.text)
+                
+                if img_file:
+                    # Invio del file BINARIO (molto più affidabile)
+                    bot_luna.send_photo(cid, img_file)
+                else:
+                    bot_luna.send_message(cid, f"Papi, intoppo tecnico: {errore}")
                 return
 
-            # Gestione Vocali
+            # 2. Gestione Vocali
             if m.content_type == 'voice':
                 bot_luna.send_chat_action(cid, 'record_audio')
                 u_text = trascrivi(m.voice.file_id)
                 ans = chiedi_llm(u_text)
                 bot_luna.send_voice(cid, tts(ans))
             
-            # Gestione Vision
+            # 3. Gestione Vision (Luna guarda te)
             elif m.content_type == 'photo':
+                bot_luna.send_chat_action(cid, 'typing')
                 f_id = m.photo[-1].file_id
                 f_path = bot_luna.get_file(f_id).file_path
                 img_url = f"https://api.telegram.org/file/bot{L_TK}/{f_path}"
                 ans = chiedi_llm([{"type": "text", "text": "Guarda."}, {"type": "image_url", "image_url": {"url": img_url}}])
                 bot_luna.send_message(cid, ans)
             
-            # Testo Normale
+            # 4. Testo Normale
             elif m.content_type == 'text':
                 bot_luna.send_message(cid, chiedi_llm(m.text))
                 
-        except Exception as e: print(f"Err V63: {e}")
+        except Exception as e:
+            print(f"Err V64: {e}")
 
 if __name__ == "__main__":
     threading.Thread(target=lambda: app.run(host='0.0.0.0', port=int(os.environ.get("PORT", 8080))), daemon=True).start()
     if bot_luna:
         time.sleep(15)
         bot_luna.delete_webhook(drop_pending_updates=True)
-        print("🚀 Luna V63 Online. Formato Square caricato.")
+        print("🚀 Luna V64 Online. Photo Fix & Vocals Active.")
         bot_luna.polling(none_stop=True)
