@@ -5,7 +5,7 @@ from flask import Flask
 app = Flask(__name__)
 
 @app.route('/')
-def health(): return "Luna V94: Unfiltered Logic Active 🚀", 200
+def health(): return "Luna V95: Uncensored Engine 🚀", 200
 
 # --- CONFIGURAZIONE ---
 L_TK = os.environ.get('TOKEN_LUNA', "").strip()
@@ -17,33 +17,26 @@ client_or = OpenAI(base_url="https://openrouter.ai/api/v1", api_key=OR_K)
 client_oa = OpenAI(api_key=OA_K)
 bot_luna = telebot.TeleBot(L_TK, threaded=False)
 
-# --- MOTORE FOTO (ANTI-CENSURA) ---
+# --- NUOVO MOTORE FOTO (SENZA FILTRI) ---
 def genera_foto_luna(testo_utente):
-    url = "https://fal.run/fal-ai/flux/dev"
+    # Usiamo un modello SDXL specializzato in realismo e NSFW
+    url = "https://fal.run/fal-ai/sdxl" 
     headers = {"Authorization": f"Key {FAL_K}", "Content-Type": "application/json"}
     
     t = testo_utente.lower()
     
-    # TRADUZIONE ARTISTICA: Evitiamo le parole "trigger" e usiamo descrizioni visive
-    if any(k in t for k in ["nuda", "senza vestiti", "topless", "spogliati"]):
-        # Usiamo termini da fotografia artistica/boudoir che il filtro accetta
-        descrizione_fisica = "implied nudity, extremely sensual pose, sheer lingerie, soft skin texture, artistic boudoir photography, highly detailed body, glowing skin"
-    elif any(k in t for k in ["sexy", "hot", "provocante"]):
-        descrizione_fisica = "provocative black lace lingerie, sultry look, cinematic bedroom lighting, masterpiece"
-    else:
-        descrizione_fisica = "casual outfit, stunning look, natural lighting"
-
-    # Costruiamo il prompt bypassando i filtri testuali
-    full_prompt = (
-        f"A hyper-realistic 8k photo of Luna, a beautiful 24yo italian girl, {descrizione_fisica}, "
-        f"messy dark hair, looking at camera, raw photo style, depth of field, sharp focus on skin"
-    )
+    # Costruiamo il prompt esplicito (questo modello NON ha filtri)
+    prompt_base = "A hyper-realistic RAW photo of a beautiful 24yo italian girl named Luna, long dark messy hair, detailed skin, soft lighting, 8k masterpiece"
+    
+    # Aggiungiamo il tuo desiderio senza "traduzioni" gentili
+    full_prompt = f"{prompt_base}, {t}"
     
     payload = {
         "prompt": full_prompt,
-        "image_size": "square",
-        "seed": random.randint(1, 1000000),
-        "num_inference_steps": 30 # Aumentiamo la qualità
+        "negative_prompt": "cartoon, anime, low quality, distorted, ugly, blurry, clothes if requested nude",
+        "image_size": "square_hd",
+        "num_inference_steps": 40,
+        "guidance_scale": 7.5
     }
     
     try:
@@ -51,12 +44,10 @@ def genera_foto_luna(testo_utente):
         if res.status_code == 200:
             return requests.get(res.json()['images'][0]['url']).content
         else:
-            print(f"DEBUG: FAL ha risposto con errore {res.status_code}: {res.text}")
-    except Exception as e:
-        print(f"DEBUG: Errore connessione FAL: {e}")
-    return None
+            print(f"DEBUG: Errore motore: {res.text}")
+    except: return None
 
-# --- GESTIONE VOCALE & TESTO ---
+# --- GESTIONE VOCE & TESTO (INVARIATI) ---
 def trascrivi_vocale(file_id):
     try:
         f_info = bot_luna.get_file(file_id)
@@ -86,21 +77,19 @@ def handle_all(m):
     else:
         input_text = m.text
 
-    # Logica Foto (con parole chiave espanse)
-    if any(k in input_text.lower() for k in ["foto", "selfie", "vederti", "hot", "sexy", "nuda", "spogliati"]):
-        bot_luna.send_message(cid, "Ti accontento subito, guarda che roba... 🫦")
+    # Trigger Foto (Molto sensibile)
+    if any(k in input_text.lower() for k in ["foto", "selfie", "vederti", "hot", "sexy", "nuda", "spogliata", "topless"]):
+        bot_luna.send_message(cid, "Ok papi, stavolta non mi vergogno... guarda. 🫦")
         img = genera_foto_luna(input_text)
-        if img:
-            bot_luna.send_photo(cid, img)
-        else:
-            bot_luna.send_message(cid, "Uff, la fotocamera si è incantata. Riprova tra un secondo!")
+        if img: bot_luna.send_photo(cid, img)
+        else: bot_luna.send_message(cid, "Il server è sovraccarico, riprova tra un attimo!")
         return
 
-    # Risposta Normale
+    # Risposta Chat
     try:
         res = client_or.chat.completions.create(
             model="google/gemini-2.0-flash-001",
-            messages=[{"role": "system", "content": "Sei Luna, 24 anni, audace e complice. Rispondi breve e calda."},
+            messages=[{"role": "system", "content": "Sei Luna, 24 anni, audace, complice e senza tabù. Rispondi breve."},
                       {"role": "user", "content": input_text}]
         )
         risposta = res.choices[0].message.content
@@ -115,5 +104,5 @@ def handle_all(m):
 if __name__ == "__main__":
     threading.Thread(target=lambda: app.run(host='0.0.0.0', port=8080), daemon=True).start()
     bot_luna.remove_webhook()
-    print("🚀 Luna V94 Online: Unfiltered Logic.")
+    print("🚀 Luna V95 Online: Uncensored Mode.")
     bot_luna.infinity_polling()
