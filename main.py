@@ -6,7 +6,7 @@ app = Flask(__name__)
 
 @app.route('/')
 def health():
-    return "Luna V50: FULL BOT (Vision & Imagine) Active 📸", 200
+    return "Luna V51: Model Fix & Full Bot Active 📸", 200
 
 # --- CONFIGURAZIONE ---
 def clean_token(token_name):
@@ -21,7 +21,27 @@ client_oa = OpenAI(api_key=OA_K)
 
 bot_luna = telebot.TeleBot(L_TK, threaded=False) if ":" in L_TK else None
 
-# --- PROMPT LUNA (Bot Completo) ---
+# --- MEMORIA (JSON) ---
+MEMORY_FILE = "luna_memory.json"
+
+def carica_memoria():
+    if os.path.exists(MEMORY_FILE):
+        try:
+            with open(MEMORY_FILE, "r") as f: return json.load(f)
+        except: return {"inglese_progressi": []}
+    return {"inglese_progressi": []}
+
+def salva_memoria(nuova_parola):
+    if not nuova_parola: return
+    try:
+        mem = carica_memoria()
+        if nuova_parola not in mem.get("inglese_progressi", []):
+            if "inglese_progressi" not in mem: mem["inglese_progressi"] = []
+            mem["inglese_progressi"].append(nuova_parola)
+            with open(MEMORY_FILE, "w") as f: json.dump(mem, f)
+    except Exception as e: print(f"Errore salvataggio memoria: {e}")
+
+# --- PROMPT LUNA ---
 PROMPT_LUNA = (
     "Sei Luna, 24 anni, la donna di Papi. Sei simpatica e ironica. "
     "Se ricevi una foto, guardala e commentala in modo complice. "
@@ -31,20 +51,18 @@ PROMPT_LUNA = (
 
 # --- FUNZIONI CORE ---
 def chiedi_llm(user_content):
-    # Gemini 1.5 Flash gestisce sia testo che immagini (Vision)
+    # FIX: Usiamo il nome modello aggiornato e stabile su OpenRouter
     res = client_or.chat.completions.create(
-        model="google/gemini-flash-1.5",
+        model="google/gemini-flash-1.5-8b", 
         messages=[{"role": "system", "content": PROMPT_LUNA}, {"role": "user", "content": user_content}]
     )
     return res.choices[0].message.content
 
 def genera_immagine(prompt_foto):
-    # Usa DALL-E 3 per creare la foto di Luna
     response = client_oa.images.generate(
         model="dall-e-3",
-        prompt=f"A beautiful 24 year old girl named Luna, friendly and sexy, in a realistic setting, {prompt_foto}",
+        prompt=f"A beautiful 24 year old girl named Luna, friendly and sexy, realistic, {prompt_foto}",
         size="1024x1024",
-        quality="standard",
         n=1,
     )
     return response.data[0].url
@@ -63,47 +81,46 @@ def tts(testo):
     testo_pulito = re.sub(r'Word: \w+', '', testo).strip()
     return client_oa.audio.speech.create(model="tts-1", voice="shimmer", input=testo_pulito).content
 
-# --- GESTORE LUNA ---
+# --- GESTORE ---
 if bot_luna:
     @bot_luna.message_handler(content_types=['text', 'voice', 'photo'])
     def handle_luna(m):
         cid = m.chat.id
         try:
-            # 1. LOGICA PER CHIEDERE FOTO A LUNA
+            # Foto di lei
             if m.content_type == 'text' and any(x in m.text.lower() for x in ["foto", "vederti", "pic", "photo"]):
-                bot_luna.send_message(cid, "Dammi un secondo papi, mi faccio carina per te... 😉")
-                img_url = genera_immagine("smiling at the camera, casual clothing")
-                bot_luna.send_photo(cid, img_url)
+                bot_luna.send_message(cid, "Dammi un secondo papi, mi faccio carina... 😉")
+                bot_luna.send_photo(cid, genera_immagine("smiling, casual clothing, indoor"))
                 return
 
-            # 2. LOGICA VISION (LEI GUARDA TE)
+            # Lei guarda te (Vision)
             if m.content_type == 'photo':
                 bot_luna.send_chat_action(cid, 'typing')
                 file_info = bot_luna.get_file(m.photo[-1].file_id)
                 img_path = f"https://api.telegram.org/file/bot{L_TK}/{file_info.file_path}"
-                content = [
-                    {"type": "text", "text": "Guarda questa foto mivida."},
-                    {"type": "image_url", "image_url": {"url": img_path}}
-                ]
+                content = [{"type": "text", "text": "Commenta questa foto."}, {"type": "image_url", "image_url": {"url": img_path}}]
                 ans = chiedi_llm(content)
                 bot_luna.send_message(cid, ans)
             
-            # 3. LOGICA VOCALE E TESTO STANDARD
+            # Vocale -> Vocale
             elif m.content_type == 'voice':
                 u_text = trascrivi(m.voice.file_id)
                 ans = chiedi_llm(u_text)
                 bot_luna.send_voice(cid, tts(ans))
+            # Testo -> Testo
             else:
                 ans = chiedi_llm(m.text)
                 bot_luna.send_message(cid, ans)
+            
+            match = re.search(r'Word: (\w+)', ans, re.IGNORECASE)
+            if match: salva_memoria(match.group(1))
                 
-        except Exception as e:
-            print(f"Err V50: {e}")
+        except Exception as e: print(f"Err V51: {e}")
 
 if __name__ == "__main__":
     threading.Thread(target=lambda: app.run(host='0.0.0.0', port=int(os.environ.get("PORT", 8080))), daemon=True).start()
     if bot_luna:
         time.sleep(10)
         bot_luna.delete_webhook(drop_pending_updates=True)
-        print("🚀 Luna V50 Online. Il bot è completo.")
+        print("🚀 Luna V51 Online. Model Fix Done.")
         bot_luna.polling(none_stop=True, interval=1, timeout=20)
