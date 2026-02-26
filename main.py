@@ -6,7 +6,7 @@ app = Flask(__name__)
 
 @app.route('/')
 def health():
-    return "Luna V66: Final Connection Fix 🚀", 200
+    return "Luna V67: Anti-Conflict Engine Active 🚀", 200
 
 # --- CONFIGURAZIONE ---
 L_TK = os.environ.get('TOKEN_LUNA', "").strip().replace("'", "").replace('"', "")
@@ -35,16 +35,15 @@ def genera_immagine_fal(prompt_utente):
         res = requests.post(url, headers=headers, json=payload, timeout=60)
         if res.status_code == 200:
             img_url = res.json()['images'][0]['url']
-            # SCARICHIAMO L'IMMAGINE LOCALMENTE PER EVITARE ERRORI DI PADDING
             img_res = requests.get(img_url, timeout=30)
             if img_res.status_code == 200:
                 bio = io.BytesIO(img_res.content)
-                bio.name = 'luna_photo.jpg' # Diamo un nome al file per Telegram
+                bio.name = 'luna.jpg'
                 return bio, None
         return None, f"Errore API {res.status_code}"
     except Exception as e: return None, str(e)
 
-# --- (Mantieni funzioni trascrivi, tts e chiedi_llm della V65) ---
+# --- FUNZIONI CORE ---
 def trascrivi(file_id):
     fname = f"/tmp/v_{file_id}.ogg"
     with open(fname, "wb") as f: f.write(requests.get(f"https://api.telegram.org/file/bot{L_TK}/{bot_luna.get_file(file_id).file_path}").content)
@@ -72,13 +71,11 @@ if bot_luna:
             if m.content_type == 'text' and any(k in testo_l for k in keywords):
                 bot_luna.send_message(cid, "Mi preparo per te mivida... 😉")
                 bot_luna.send_chat_action(cid, 'upload_photo')
-                
                 img_bio, errore = genera_immagine_fal(m.text)
                 if img_bio:
-                    # INVIO COME DOCUMENTO/FOTO REALE
                     bot_luna.send_photo(cid, img_bio)
                 else:
-                    bot_luna.send_message(cid, f"Problema tecnico: {errore}")
+                    bot_luna.send_message(cid, f"Problema: {errore}")
                 return
 
             if m.content_type == 'voice':
@@ -86,11 +83,16 @@ if bot_luna:
                 bot_luna.send_voice(cid, tts(chiedi_llm(u_text)))
             elif m.content_type == 'text':
                 bot_luna.send_message(cid, chiedi_llm(m.text))
-        except Exception as e: print(f"Err V66: {e}")
+        except Exception as e: print(f"Err V67: {e}")
 
 if __name__ == "__main__":
     threading.Thread(target=lambda: app.run(host='0.0.0.0', port=int(os.environ.get("PORT", 8080))), daemon=True).start()
     if bot_luna:
-        time.sleep(10)
+        # PUNTI CHIAVE PER RISOLVERE IL CONFLITTO 409:
+        print("🛠️ Pulizia connessioni precedenti...")
+        bot_luna.remove_webhook()
+        time.sleep(2)
         bot_luna.delete_webhook(drop_pending_updates=True)
-        bot_luna.polling(none_stop=True)
+        time.sleep(5) # Aspettiamo che Telegram capisca che il vecchio bot è morto
+        print("🚀 Luna V67 Online.")
+        bot_luna.polling(none_stop=True, timeout=60)
