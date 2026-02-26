@@ -6,7 +6,7 @@ app = Flask(__name__)
 
 @app.route('/')
 def health():
-    return "Luna V67: Anti-Conflict Engine Active 🚀", 200
+    return "Luna V69: Ghost Hunter Active 🚀", 200
 
 # --- CONFIGURAZIONE ---
 L_TK = os.environ.get('TOKEN_LUNA', "").strip().replace("'", "").replace('"', "")
@@ -18,19 +18,12 @@ client_or = OpenAI(base_url="https://openrouter.ai/api/v1", api_key=OR_K)
 client_oa = OpenAI(api_key=OA_K)
 bot_luna = telebot.TeleBot(L_TK, threaded=False) if ":" in L_TK else None
 
-# --- GENERAZIONE FLUX (FAL.AI) ---
+# --- GENERAZIONE FLUX ---
 def genera_immagine_fal(prompt_utente):
     if not FAL_K: return None, "Manca FAL_KEY"
     url = "https://fal.run/fal-ai/flux/dev"
     headers = {"Authorization": f"Key {FAL_K}", "Content-Type": "application/json"}
-    
-    payload = {
-        "prompt": f"Professional RAW photo of Luna, 24yo Italian girl, natural skin, charismatic, {prompt_utente}",
-        "image_size": "square",
-        "sync_mode": True,
-        "enable_safety_checker": False
-    }
-    
+    payload = {"prompt": f"Professional photo of Luna, 24yo Italian girl, natural, {prompt_utente}", "image_size": "square", "sync_mode": True, "enable_safety_checker": False}
     try:
         res = requests.post(url, headers=headers, json=payload, timeout=60)
         if res.status_code == 200:
@@ -43,21 +36,15 @@ def genera_immagine_fal(prompt_utente):
         return None, f"Errore API {res.status_code}"
     except Exception as e: return None, str(e)
 
-# --- FUNZIONI CORE ---
-def trascrivi(file_id):
-    fname = f"/tmp/v_{file_id}.ogg"
-    with open(fname, "wb") as f: f.write(requests.get(f"https://api.telegram.org/file/bot{L_TK}/{bot_luna.get_file(file_id).file_path}").content)
-    with open(fname, "rb") as f: txt = client_oa.audio.transcriptions.create(model="whisper-1", file=f).text
-    os.remove(fname)
-    return txt
-
-def tts(testo):
-    p = re.sub(r'Word: \w+', '', testo).strip()
-    return client_oa.audio.speech.create(model="tts-1", voice="shimmer", input=p).content
-
+# --- LOGICA LLM ---
 def chiedi_llm(user_content):
-    res = client_or.chat.completions.create(model="google/gemini-2.0-flash-001", messages=[{"role": "system", "content": "Sei Luna, 24 anni, la donna di Papi. Audace e breve."}, {"role": "user", "content": user_content}])
-    return res.choices[0].message.content
+    try:
+        res = client_or.chat.completions.create(
+            model="google/gemini-2.0-flash-001", 
+            messages=[{"role": "system", "content": "Sei Luna, la donna audace di Papi. Rispondi breve (max 150 car)."}, {"role": "user", "content": str(user_content)[:400]}]
+        )
+        return res.choices[0].message.content[:350]
+    except: return "Scusa papi, mi sono incantata un attimo. Dimmi tutto."
 
 # --- GESTORE MESSAGGI ---
 if bot_luna:
@@ -65,34 +52,23 @@ if bot_luna:
     def handle_luna(m):
         cid = m.chat.id
         testo_l = m.text.lower() if m.text else ""
-        keywords = ["foto", "vederti", "pic", "photo", "immagine", "selfie"]
-        
         try:
-            if m.content_type == 'text' and any(k in testo_l for k in keywords):
-                bot_luna.send_message(cid, "Mi preparo per te mivida... 😉")
-                bot_luna.send_chat_action(cid, 'upload_photo')
+            if m.content_type == 'text' and any(k in testo_l for k in ["foto", "vederti", "selfie"]):
+                bot_luna.send_message(cid, "Arrivo subito papi... 😉")
                 img_bio, errore = genera_immagine_fal(m.text)
-                if img_bio:
-                    bot_luna.send_photo(cid, img_bio)
-                else:
-                    bot_luna.send_message(cid, f"Problema: {errore}")
+                if img_bio: bot_luna.send_photo(cid, img_bio)
+                else: bot_luna.send_message(cid, f"Ouch: {errore}")
                 return
-
-            if m.content_type == 'voice':
-                u_text = trascrivi(m.voice.file_id)
-                bot_luna.send_voice(cid, tts(chiedi_llm(u_text)))
-            elif m.content_type == 'text':
-                bot_luna.send_message(cid, chiedi_llm(m.text))
-        except Exception as e: print(f"Err V67: {e}")
+            
+            # Risposta testuale semplice per testare la stabilità
+            bot_luna.send_message(cid, chiedi_llm(m.text if m.text else "Ciao"))
+        except Exception as e: print(f"Err V69: {e}")
 
 if __name__ == "__main__":
     threading.Thread(target=lambda: app.run(host='0.0.0.0', port=int(os.environ.get("PORT", 8080))), daemon=True).start()
     if bot_luna:
-        # PUNTI CHIAVE PER RISOLVERE IL CONFLITTO 409:
-        print("🛠️ Pulizia connessioni precedenti...")
+        print("🧹 Pulizia profonda in corso...")
         bot_luna.remove_webhook()
-        time.sleep(2)
-        bot_luna.delete_webhook(drop_pending_updates=True)
-        time.sleep(5) # Aspettiamo che Telegram capisca che il vecchio bot è morto
-        print("🚀 Luna V67 Online.")
-        bot_luna.polling(none_stop=True, timeout=60)
+        time.sleep(3)
+        # Il parametro skip_pending_updates=True è quello che ci salva dai messaggi troppo lunghi bloccati
+        bot_luna.polling(none_stop=True, skip_pending_updates=True)
