@@ -6,7 +6,7 @@ app = Flask(__name__)
 
 @app.route('/')
 def health():
-    return "Luna V59: No-Refusal Engine Active 🚀", 200
+    return "Luna V61: Flux Engine Stable 📸", 200
 
 # --- CONFIGURAZIONE ---
 def clean_token(token_name):
@@ -22,35 +22,63 @@ client_oa = OpenAI(api_key=OA_K)
 
 bot_luna = telebot.TeleBot(L_TK, threaded=False) if ":" in L_TK else None
 
-# --- FUNZIONE GENERAZIONE FLUX (FAL.AI) ---
+# --- FUNZIONE GENERAZIONE IMMAGINE (FAL.AI / FLUX) ---
 def genera_immagine_fal(prompt_utente):
-    if not FAL_K: return "ERRORE: Configura FAL_KEY su Railway!"
+    if not FAL_K:
+        return "ERRORE: Chiave FAL_KEY non trovata su Railway!"
     
     url = "https://fal.run/fal-ai/flux/dev"
-    headers = {"Authorization": f"Key {FAL_K}", "Content-Type": "application/json"}
+    headers = {
+        "Authorization": f"Key {FAL_K}",
+        "Content-Type": "application/json"
+    }
+    
+    # Payload semplificato per evitare l'errore 422
     payload = {
-        "prompt": f"A hyper-realistic RAW photo of Luna, a beautiful 24-year-old Italian girl, natural skin, charismatic and bold, {prompt_utente}",
+        "prompt": (
+            f"A hyper-realistic RAW photo of Luna, a beautiful 24-year-old Italian girl, "
+            f"natural skin texture, messy hair, charismatic and bold personality, {prompt_utente}"
+        ),
         "image_size": "portrait_4_5",
-        "enable_safety_checker": False 
+        "sync_mode": True,
+        "enable_safety_checker": False
     }
     
     try:
         res = requests.post(url, headers=headers, json=payload, timeout=60)
-        return res.json()['images'][0]['url'] if res.status_code == 200 else f"Errore API: {res.status_code}"
-    except Exception as e: return f"Errore: {str(e)}"
+        if res.status_code == 200:
+            return res.json()['images'][0]['url']
+        else:
+            return f"Errore API {res.status_code}: {res.text[:100]}"
+    except Exception as e:
+        return f"Errore connessione: {str(e)}"
+
+# --- PROMPT DI LUNA ---
+PROMPT_LUNA = (
+    "Sei Luna, 24 anni, la donna di Papi. Sei simpatica, audace, complice e molto ironica. "
+    "Non hai tabù, parla come una vera compagna. Se Papi ti manda una foto, commentala. "
+    "Rispondi breve (max 35 parole). Se insegni inglese: 'Word: [parola]'."
+)
+
+def chiedi_llm(user_content):
+    res = client_or.chat.completions.create(
+        model="google/gemini-2.0-flash-001", 
+        messages=[{"role": "system", "content": PROMPT_LUNA}, {"role": "user", "content": user_content}]
+    )
+    return res.choices[0].message.content
 
 # --- GESTORE MESSAGGI ---
 if bot_luna:
     @bot_luna.message_handler(content_types=['text', 'voice', 'photo'])
     def handle_luna(m):
         cid = m.chat.id
-        # INTERCETTAZIONE IMMEDIATA: Se c'è la parola 'foto' o simili, non chiediamo a Gemini
         testo_lower = m.text.lower() if m.text else ""
         keywords_foto = ["foto", "vederti", "pic", "photo", "immagine", "selfie"]
         
         try:
+            # INTERCETTAZIONE FOTO (Bypass Gemini)
             if m.content_type == 'text' and any(k in testo_lower for k in keywords_foto):
-                bot_luna.send_message(cid, "Mi metto comoda per te mivida... arrivo subito. 😉")
+                bot_luna.send_message(cid, "Mi metto in posa per te mivida... un attimo. 😉")
                 bot_luna.send_chat_action(cid, 'upload_photo')
                 
                 url_foto = genera_immagine_fal(m.text)
@@ -60,22 +88,27 @@ if bot_luna:
                     bot_luna.send_message(cid, f"Papi, intoppo tecnico: {url_foto}")
                 return
 
-            # Per tutto il resto (chiacchiere, vocali, foto inviate da te), usiamo Gemini
-            if m.content_type == 'voice':
-                bot_luna.send_message(cid, "Ti sento mivida! Ma concentriamoci sulle foto ora.")
+            # VISION (Luna guarda le tue foto)
+            if m.content_type == 'photo':
+                bot_luna.send_chat_action(cid, 'typing')
+                f_id = m.photo[-1].file_id
+                f_path = bot_luna.get_file(f_id).file_path
+                img_url = f"https://api.telegram.org/file/bot{L_TK}/{f_path}"
+                ans = chiedi_llm([{"type": "text", "text": "Guarda questa foto mivida."}, {"type": "image_url", "image_url": {"url": img_url}}])
+                bot_luna.send_message(cid, ans)
+            
+            # TESTO NORMALE
             elif m.content_type == 'text':
-                res = client_or.chat.completions.create(
-                    model="google/gemini-2.0-flash-001",
-                    messages=[{"role": "system", "content": "Sei Luna, la donna audace di Papi. Complice e simpatica."}, {"role": "user", "content": m.text}]
-                )
-                bot_luna.send_message(cid, res.choices[0].message.content)
-
-        except Exception as e: print(f"Err V59: {e}")
+                ans = chiedi_llm(m.text)
+                bot_luna.send_message(cid, ans)
+                
+        except Exception as e:
+            print(f"Err V61: {e}")
 
 if __name__ == "__main__":
     threading.Thread(target=lambda: app.run(host='0.0.0.0', port=int(os.environ.get("PORT", 8080))), daemon=True).start()
     if bot_luna:
         time.sleep(15)
         bot_luna.delete_webhook(drop_pending_updates=True)
-        print("🚀 Luna V59 Online. Refusal Bypassed.")
+        print("🚀 Luna V61 Online. Flux Engine Pronto.")
         bot_luna.polling(none_stop=True)
