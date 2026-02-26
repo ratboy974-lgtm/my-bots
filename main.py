@@ -6,7 +6,7 @@ app = Flask(__name__)
 
 @app.route('/')
 def health():
-    return "Luna V69: Ghost Hunter Active 🚀", 200
+    return "Luna V70: System Stabilized 🚀", 200
 
 # --- CONFIGURAZIONE ---
 L_TK = os.environ.get('TOKEN_LUNA', "").strip().replace("'", "").replace('"', "")
@@ -44,7 +44,7 @@ def chiedi_llm(user_content):
             messages=[{"role": "system", "content": "Sei Luna, la donna audace di Papi. Rispondi breve (max 150 car)."}, {"role": "user", "content": str(user_content)[:400]}]
         )
         return res.choices[0].message.content[:350]
-    except: return "Scusa papi, mi sono incantata un attimo. Dimmi tutto."
+    except: return "Scusa papi, mi sono incantata. Dimmi tutto."
 
 # --- GESTORE MESSAGGI ---
 if bot_luna:
@@ -60,15 +60,15 @@ if bot_luna:
                 else: bot_luna.send_message(cid, f"Ouch: {errore}")
                 return
             
-            # Risposta testuale semplice per testare la stabilità
             bot_luna.send_message(cid, chiedi_llm(m.text if m.text else "Ciao"))
-        except Exception as e: print(f"Err V69: {e}")
+        except Exception as e: print(f"Err V70: {e}")
 
 if __name__ == "__main__":
     threading.Thread(target=lambda: app.run(host='0.0.0.0', port=int(os.environ.get("PORT", 8080))), daemon=True).start()
     if bot_luna:
-        print("🧹 Pulizia profonda in corso...")
-        bot_luna.remove_webhook()
-        time.sleep(3)
-        # Il parametro skip_pending_updates=True è quello che ci salva dai messaggi troppo lunghi bloccati
-        bot_luna.polling(none_stop=True, skip_pending_updates=True)
+        print("🧹 Pulizia profonda e reset aggiornamenti...")
+        # FIX: skip_pending_updates si usa qui, non dentro polling()
+        bot_luna.remove_webhook(drop_pending_updates=True) 
+        time.sleep(5)
+        print("🚀 Luna V70 Online.")
+        bot_luna.polling(none_stop=True)
