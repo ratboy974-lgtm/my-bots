@@ -45,32 +45,26 @@ def genera_foto_luna(testo_utente):
     prompt_puro = testo_utente.lower().replace("foto", "").replace("selfie", "").strip()
     full_prompt = f"Upper body shot of Luna, stunning 24yo italian girl, {prompt_puro}, detailed skin, realistic, 8k masterpiece"
     
-    try:
-        # 1. Chiediamo la generazione
-        res = requests.post(url, headers=headers, json={"prompt": full_prompt}, timeout=60)
-        if res.status_code == 200:
-            img_url = res.json()['images'][0]['url']
-            
-            # 2. Piccola pausa per dare tempo al server di stabilizzare il file
-            time.sleep(2)
-            
-            # 3. Scarichiamo il file con stream=True per gestire meglio i dati pesanti
-            with requests.get(img_url, stream=True, timeout=30) as r:
-                r.raise_for_status()
-                buf = io.BytesIO()
-                for chunk in r.iter_content(chunk_size=8192):
-                    buf.write(chunk)
+    # Proviamo fino a 2 volte se la foto esce nera
+    for tentativo in range(2):
+        try:
+            res = requests.post(url, headers=headers, json={"prompt": full_prompt}, timeout=60)
+            if res.status_code == 200:
+                img_url = res.json()['images'][0]['url']
+                time.sleep(2) # Pausa stabilizzatrice
                 
-                img_data = buf.getvalue()
-                
-                # 4. CONTROLLO CRITICO: Se la foto è più piccola di 50KB, è quasi certamente corrotta o nera
-                if len(img_data) > 50000:
-                    print(f"✅ Foto pronta per l'invio: {len(img_data)} bytes")
-                    return img_data
-                else:
-                    print(f"⚠️ Foto troppo piccola ({len(img_data)} bytes), scartata per evitare il nero.")
-    except Exception as e:
-        print(f"❌ Errore fotocamera: {e}")
+                img_res = requests.get(img_url, timeout=30)
+                if img_res.status_code == 200:
+                    dimensione = len(img_res.content)
+                    # SE LA FOTO È BUONA (> 50KB)
+                    if dimensione > 50000:
+                        print(f"✅ Foto OK! Taglia: {dimensione} bytes")
+                        return img_res.content
+                    else:
+                        print(f"⚠️ Tentativo {tentativo+1}: Foto troppo piccola ({dimensione} bytes). Riprovo...")
+                        time.sleep(2)
+        except Exception as e:
+            print(f"❌ Errore: {e}")
     return None
     
     try:
