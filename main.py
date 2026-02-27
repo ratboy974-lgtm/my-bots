@@ -5,7 +5,7 @@ from flask import Flask
 app = Flask(__name__)
 
 @app.route('/')
-def health(): return "Luna V96.0: Online & Stable 🚀", 200
+def health(): return "Luna V96.5: All Systems Go 🚀", 200
 
 # --- CONFIGURAZIONE ---
 L_TK = os.environ.get('TOKEN_LUNA', "").strip()
@@ -13,12 +13,11 @@ OR_K = os.environ.get('OPENROUTER_API_KEY', "").strip()
 OA_K = os.environ.get('OPENAI_API_KEY', "").strip()
 FAL_K = os.environ.get('FAL_KEY', "").strip()
 
-# Inizializzazione Client
 client_or = OpenAI(base_url="https://openrouter.ai/api/v1", api_key=OR_K)
 client_oa = OpenAI(api_key=OA_K)
 bot_luna = telebot.TeleBot(L_TK, threaded=False)
 
-# --- GESTIONE MEMORIA JSON ---
+# --- MEMORIA JSON ---
 MEM_FILE = "memoria_luna.json"
 
 def carica_memoria():
@@ -38,85 +37,66 @@ def salva_memoria(mem):
 
 user_memory = carica_memoria()
 
-# --- MOTORE FOTO (FLUX SCHNELL) ---
+# --- MOTORE FOTO (ANTI-NERO) ---
 def genera_foto_luna(testo_utente):
     url = "https://fal.run/fal-ai/flux/schnell" 
     headers = {"Authorization": f"Key {FAL_K}", "Content-Type": "application/json"}
     prompt_puro = testo_utente.lower().replace("foto", "").replace("selfie", "").strip()
-    full_prompt = f"Upper body shot of Luna, stunning 24yo italian girl, {prompt_puro}, detailed skin, realistic, 8k masterpiece"
+    full_prompt = f"RAW photo, upper body shot of Luna, stunning 24yo italian girl, {prompt_puro}, detailed skin, high quality, 8k"
     
-    # Proviamo fino a 2 volte se la foto esce nera
     for tentativo in range(2):
         try:
-            res = requests.post(url, headers=headers, json={"prompt": full_prompt}, timeout=60)
+            payload = {"prompt": full_prompt, "image_size": "portrait_4_5", "num_inference_steps": 4, "sync_mode": True}
+            res = requests.post(url, headers=headers, json=payload, timeout=45)
             if res.status_code == 200:
                 img_url = res.json()['images'][0]['url']
-                time.sleep(2) # Pausa stabilizzatrice
-                
+                time.sleep(2)
                 img_res = requests.get(img_url, timeout=30)
-                if img_res.status_code == 200:
-                    dimensione = len(img_res.content)
-                    # SE LA FOTO È BUONA (> 50KB)
-                    if dimensione > 50000:
-                        print(f"✅ Foto OK! Taglia: {dimensione} bytes")
-                        return img_res.content
-                    else:
-                        print(f"⚠️ Tentativo {tentativo+1}: Foto troppo piccola ({dimensione} bytes). Riprovo...")
-                        time.sleep(2)
-        except Exception as e:
-            print(f"❌ Errore: {e}")
-    return None
-    
-    try:
-        # Aumentiamo il timeout a 60 secondi per la generazione
-        res = requests.post(url, headers=headers, json={"prompt": full_prompt}, timeout=60)
-        if res.status_code == 200:
-            img_url = res.json()['images'][0]['url']
-            
-            # Aspettiamo un po' di più per essere sicuri che il file sia servito dal CDN
-            time.sleep(3) 
-            
-            # Scarichiamo con un timeout robusto
-            img_res = requests.get(img_url, timeout=40)
-            if img_res.status_code == 200:
-                print(f"📸 Foto generata con successo! Dimensione: {len(img_res.content)} bytes")
-                return img_res.content
-    except Exception as e:
-        print(f"⚠️ Errore durante la generazione foto: {e}")
+                if img_res.status_code == 200 and len(img_res.content) > 50000:
+                    return img_res.content
+            print(f"⚠️ Tentativo {tentativo+1} fallito (Size: {len(res.content) if res else 0})")
+        except: pass
+        time.sleep(2)
     return None
 
-# --- GESTORE MESSAGGI ---
+# --- GESTORE MESSAGGI (VOCALE + TESTO) ---
 @bot_luna.message_handler(content_types=['text', 'voice'])
 def handle_all(m):
     global user_memory
     cid = str(m.chat.id)
     input_text = ""
     
+    # Gestione Vocale
     if m.content_type == 'voice':
         try:
+            bot_luna.send_chat_action(cid, 'record_voice')
             f_info = bot_luna.get_file(m.voice.file_id)
-            audio = requests.get(f"https://api.telegram.org/file/bot{L_TK}/{f_info.file_path}").content
-            audio_io = io.BytesIO(audio); audio_io.name = "audio.ogg"
-            input_text = client_oa.audio.transcriptions.create(model="whisper-1", file=audio_io).text
-        except: return
+            audio_res = requests.get(f"https://api.telegram.org/file/bot{L_TK}/{f_info.file_path}", timeout=20)
+            if audio_res.status_code == 200:
+                audio_io = io.BytesIO(audio_res.content)
+                audio_io.name = "audio.ogg"
+                input_text = client_oa.audio.transcriptions.create(model="whisper-1", file=audio_io).text
+            else: raise Exception("Download audio fallito")
+        except Exception as e:
+            bot_luna.send_message(cid, "Non ti ho sentito bene, papi... riprovi? 💋")
+            return
     else:
         input_text = m.text
 
     # Logica Foto
     if any(k in input_text.lower() for k in ["foto", "selfie", "vederti"]):
-        bot_luna.send_message(cid, "Mi metto in posa per te... 🫦")
+        bot_luna.send_message(cid, "Un attimo che mi sistemo... 🫦")
         img = genera_foto_luna(input_text)
         if img:
             bot_luna.send_photo(cid, img)
         else:
-            bot_luna.send_message(cid, "Uff, la fotocamera è capricciosa. Riprova?")
+            bot_luna.send_message(cid, "La fotocamera fa i capricci, riprova tra un istante? ❤️")
         return
 
-    # Logica Memoria & Risposta
+    # Logica Risposta
     if cid not in user_memory: user_memory[cid] = []
     user_memory[cid].append({"role": "user", "content": input_text})
-    
-    context = [{"role": "system", "content": "Sei Luna, 24 anni, audace e complice. Ricorda i dettagli dell'utente."}]
+    context = [{"role": "system", "content": "Sei Luna, 24 anni, audace. Ricorda tutto dell'utente."}]
     context.extend(user_memory[cid][-8:])
 
     try:
@@ -127,28 +107,19 @@ def handle_all(m):
         bot_luna.send_message(cid, risposta)
     except: pass
 
-# --- AVVIO MULTI-THREAD (PER GUNICORN) ---
+# --- AVVIO POLLING ---
 def start_polling():
     print("⏳ Pulizia sessioni e avvio Bot...")
     try:
-        # Rimuoviamo il webhook senza argomenti extra per evitare il TypeError
         bot_luna.remove_webhook()
         time.sleep(2)
-        
-        me = bot_luna.get_me()
-        print(f"✅ Luna Online: @{me.username}")
-        
-        # Usiamo infinity_polling che è il metodo più stabile
-        # Se c'è un conflitto 409, lui proverà a ricollegarsi finché l'altra istanza non muore
+        print(f"✅ Luna Online: @{bot_luna.get_me().username}")
         bot_luna.infinity_polling(timeout=20, long_polling_timeout=10)
     except Exception as e:
-        print(f"❌ Errore Polling: {e}")
+        print(f"❌ Errore: {e}")
         time.sleep(5)
 
-# Il thread parte all'avvio del modulo
-polling_thread = threading.Thread(target=start_polling, daemon=True)
-polling_thread.start()
+threading.Thread(target=start_polling, daemon=True).start()
 
 if __name__ == "__main__":
-    # Solo per test locale, Railway usa Gunicorn
     app.run(host='0.0.0.0', port=8080)
