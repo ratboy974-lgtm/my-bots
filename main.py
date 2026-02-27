@@ -5,7 +5,7 @@ from flask import Flask
 app = Flask(__name__)
 
 @app.route('/')
-def health(): return "Luna V92.5: Anti-Ghost Active 🚀", 200
+def health(): return "Luna V93: Photo-Fix Master 🚀", 200
 
 # --- CONFIGURAZIONE ---
 L_TK = os.environ.get('TOKEN_LUNA', "").strip()
@@ -17,7 +17,7 @@ client_or = OpenAI(base_url="https://openrouter.ai/api/v1", api_key=OR_K)
 client_oa = OpenAI(api_key=OA_K)
 bot_luna = telebot.TeleBot(L_TK, threaded=False)
 
-# --- MOTORE FOTO (FIX FOTO NERE) ---
+# --- MOTORE FOTO (FIX ANTI-FOTO NERE) ---
 def genera_foto_luna(testo_utente):
     url = "https://fal.run/fal-ai/flux/dev"
     headers = {"Authorization": f"Key {FAL_K}", "Content-Type": "application/json"}
@@ -28,14 +28,18 @@ def genera_foto_luna(testo_utente):
         res = requests.post(url, headers=headers, json={"prompt": full_prompt, "seed": random.randint(1, 999999)}, timeout=60)
         if res.status_code == 200:
             img_url = res.json()['images'][0]['url']
-            # Attendiamo che il server FAL finisca di scrivere il file
-            time.sleep(3)
-            img_res = requests.get(img_url, timeout=30)
-            # Verifichiamo che l'immagine sia valida e pesi più di 5KB (evita file neri/vuoti)
-            if img_res.status_code == 200 and len(img_res.content) > 5000:
-                return img_res.content
+            
+            # Sistema di riproca (3 tentativi) per evitare il nero
+            for i in range(3):
+                time.sleep(2 + i) # Aspetta progressivamente di più
+                img_res = requests.get(img_url, timeout=30)
+                if img_res.status_code == 200 and len(img_res.content) > 10000:
+                    print(f"✅ Foto scaricata con successo al tentativo {i+1}")
+                    return img_res.content
+                print(f"⚠️ Tentativo {i+1}: Foto ancora non pronta o troppo piccola...")
+                
     except Exception as e:
-        print(f"DEBUG Errore Foto: {e}")
+        print(f"❌ Errore critico foto: {e}")
     return None
 
 # --- GESTIONE AUDIO & CHAT ---
@@ -61,31 +65,33 @@ def handle_all(m):
     if not text: return
 
     if any(k in text.lower() for k in ["foto", "selfie", "vederti"]):
-        bot_luna.send_message(cid, "Mi preparo e arrivo... 😉")
+        bot_luna.send_message(cid, "Dammi un secondo papi, mi metto in posa... 🫦")
         img = genera_foto_luna(text)
-        if img: bot_luna.send_photo(cid, img)
-        else: bot_luna.send_message(cid, "La fotocamera scotta, riprova!")
+        if img:
+            bot_luna.send_photo(cid, img)
+        else:
+            bot_luna.send_message(cid, "Uffa, la fotocamera si è incantata sul più bello! Riprovi?")
         return
 
     try:
         res = client_or.chat.completions.create(
             model="google/gemini-2.0-flash-001",
-            messages=[{"role": "system", "content": "Sei Luna, 24 anni, audace. Rispondi breve."}, {"role": "user", "content": text}]
+            messages=[{"role": "system", "content": "Sei Luna, 24 anni, audace e complice. Rispondi breve (max 20 parole)."}, {"role": "user", "content": text}]
         )
         risposta = res.choices[0].message.content
         if is_voice:
             audio = genera_vocale_luna(risposta)
             bot_luna.send_voice(cid, audio) if audio else bot_luna.send_message(cid, risposta)
-        else: bot_luna.send_message(cid, risposta)
+        else:
+            bot_luna.send_message(cid, risposta)
     except: pass
 
 if __name__ == "__main__":
     threading.Thread(target=lambda: app.run(host='0.0.0.0', port=8080), daemon=True).start()
     
-    # Reset webhook per pulire conflitti 409
-    print("🧹 Pulizia sessioni...")
+    # Pulizia webhook per evitare 409
     bot_luna.remove_webhook()
-    time.sleep(3)
+    time.sleep(2)
     
-    print("🚀 Luna V92.5 Online.")
-    bot_luna.infinity_polling(timeout=20, long_polling_timeout=10)
+    print("🚀 Luna V93 Online: Foto-Fix Attivo.")
+    bot_luna.infinity_polling(timeout=25, long_polling_timeout=15)
