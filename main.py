@@ -5,7 +5,7 @@ from flask import Flask
 app = Flask(__name__)
 
 @app.route('/')
-def health(): return "Luna V92.4: Clean Start 🚀", 200
+def health(): return "Luna V92.5: Anti-Ghost Active 🚀", 200
 
 # --- CONFIGURAZIONE ---
 L_TK = os.environ.get('TOKEN_LUNA', "").strip()
@@ -17,50 +17,42 @@ client_or = OpenAI(base_url="https://openrouter.ai/api/v1", api_key=OR_K)
 client_oa = OpenAI(api_key=OA_K)
 bot_luna = telebot.TeleBot(L_TK, threaded=False)
 
-# --- FUNZIONI VOCE & ASCOLTO ---
-def genera_vocale_luna(testo):
-    try:
-        clean_text = re.sub(r'[^\w\s,.!?]', '', testo)
-        response = client_oa.audio.speech.create(model="tts-1", voice="shimmer", input=clean_text[:400])
-        return response.content
-    except: return None
-
-def trascrivi_vocale(file_id):
-    try:
-        f_info = bot_luna.get_file(file_id)
-        f_url = f"https://api.telegram.org/file/bot{L_TK}/{f_info.file_path}"
-        audio_res = requests.get(f_url)
-        if audio_res.status_code == 200:
-            audio_io = io.BytesIO(audio_res.content)
-            audio_io.name = "input.ogg"
-            return client_oa.audio.transcriptions.create(model="whisper-1", file=audio_io).text
-    except: return None
-
-# --- MOTORE FOTO POTENZIATO (FIX FOTO NERE) ---
+# --- MOTORE FOTO (FIX FOTO NERE) ---
 def genera_foto_luna(testo_utente):
     url = "https://fal.run/fal-ai/flux/dev"
     headers = {"Authorization": f"Key {FAL_K}", "Content-Type": "application/json"}
     prompt_puro = testo_utente.lower().replace("foto", "").replace("selfie", "").strip()
-    full_prompt = f"Upper body shot of Luna, stunning 24yo italian girl, {prompt_puro}, detailed skin, realistic, 8k masterpiece"
+    full_prompt = f"Upper body shot of Luna, stunning 24yo italian girl, {prompt_puro}, detailed skin, realistic, 8k"
     
     try:
         res = requests.post(url, headers=headers, json={"prompt": full_prompt, "seed": random.randint(1, 999999)}, timeout=60)
         if res.status_code == 200:
             img_url = res.json()['images'][0]['url']
-            
-            # Aspettiamo un istante che il file sia pronto sul server remoto
-            time.sleep(2) 
-            
+            # Attendiamo che il server FAL finisca di scrivere il file
+            time.sleep(3)
             img_res = requests.get(img_url, timeout=30)
-            if img_res.status_code == 200 and len(img_res.content) > 1000: # Controllo che non sia un file vuoto
+            # Verifichiamo che l'immagine sia valida e pesi più di 5KB (evita file neri/vuoti)
+            if img_res.status_code == 200 and len(img_res.content) > 5000:
                 return img_res.content
-            else:
-                print(f"⚠️ Errore download immagine: {img_res.status_code}")
     except Exception as e:
-        print(f"❌ Errore generazione: {e}")
+        print(f"DEBUG Errore Foto: {e}")
     return None
 
-# --- GESTORE MESSAGGI ---
+# --- GESTIONE AUDIO & CHAT ---
+def trascrivi_vocale(file_id):
+    try:
+        f_info = bot_luna.get_file(file_id)
+        audio = requests.get(f"https://api.telegram.org/file/bot{L_TK}/{f_info.file_path}").content
+        audio_io = io.BytesIO(audio); audio_io.name = "audio.ogg"
+        return client_oa.audio.transcriptions.create(model="whisper-1", file=audio_io).text
+    except: return None
+
+def genera_vocale_luna(testo):
+    try:
+        res = client_oa.audio.speech.create(model="tts-1", voice="shimmer", input=re.sub(r'[^\w\s,.!?]', '', testo)[:400])
+        return res.content
+    except: return None
+
 @bot_luna.message_handler(content_types=['text', 'voice'])
 def handle_all(m):
     cid = m.chat.id
@@ -69,10 +61,10 @@ def handle_all(m):
     if not text: return
 
     if any(k in text.lower() for k in ["foto", "selfie", "vederti"]):
-        bot_luna.send_message(cid, "Un attimo papi, arrivo... 😉")
+        bot_luna.send_message(cid, "Mi preparo e arrivo... 😉")
         img = genera_foto_luna(text)
         if img: bot_luna.send_photo(cid, img)
-        else: bot_luna.send_message(cid, "La fotocamera non va, riprova!")
+        else: bot_luna.send_message(cid, "La fotocamera scotta, riprova!")
         return
 
     try:
@@ -83,19 +75,17 @@ def handle_all(m):
         risposta = res.choices[0].message.content
         if is_voice:
             audio = genera_vocale_luna(risposta)
-            if audio: bot_luna.send_voice(cid, audio)
-            else: bot_luna.send_message(cid, risposta)
+            bot_luna.send_voice(cid, audio) if audio else bot_luna.send_message(cid, risposta)
         else: bot_luna.send_message(cid, risposta)
     except: pass
 
 if __name__ == "__main__":
-    # Avvio Flask
     threading.Thread(target=lambda: app.run(host='0.0.0.0', port=8080), daemon=True).start()
     
-    # 🚨 FIX COMPATIBILITÀ: Rimosso drop_pending_updates che dava errore
-    print("🧹 Pulizia Webhook...")
+    # Reset webhook per pulire conflitti 409
+    print("🧹 Pulizia sessioni...")
     bot_luna.remove_webhook()
-    time.sleep(2)
+    time.sleep(3)
     
-    print("🚀 Luna V92.4 Online. Mandami un messaggio!")
+    print("🚀 Luna V92.5 Online.")
     bot_luna.infinity_polling(timeout=20, long_polling_timeout=10)
