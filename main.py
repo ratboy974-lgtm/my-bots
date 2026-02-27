@@ -36,17 +36,29 @@ def trascrivi_vocale(file_id):
             return client_oa.audio.transcriptions.create(model="whisper-1", file=audio_io).text
     except: return None
 
-# --- MOTORE FOTO ---
+# --- MOTORE FOTO POTENZIATO (FIX FOTO NERE) ---
 def genera_foto_luna(testo_utente):
     url = "https://fal.run/fal-ai/flux/dev"
     headers = {"Authorization": f"Key {FAL_K}", "Content-Type": "application/json"}
     prompt_puro = testo_utente.lower().replace("foto", "").replace("selfie", "").strip()
-    full_prompt = f"Upper body shot of Luna, stunning 24yo italian girl, {prompt_puro}, detailed skin, realistic, 8k"
+    full_prompt = f"Upper body shot of Luna, stunning 24yo italian girl, {prompt_puro}, detailed skin, realistic, 8k masterpiece"
+    
     try:
         res = requests.post(url, headers=headers, json={"prompt": full_prompt, "seed": random.randint(1, 999999)}, timeout=60)
         if res.status_code == 200:
-            return requests.get(res.json()['images'][0]['url']).content
-    except: return None
+            img_url = res.json()['images'][0]['url']
+            
+            # Aspettiamo un istante che il file sia pronto sul server remoto
+            time.sleep(2) 
+            
+            img_res = requests.get(img_url, timeout=30)
+            if img_res.status_code == 200 and len(img_res.content) > 1000: # Controllo che non sia un file vuoto
+                return img_res.content
+            else:
+                print(f"⚠️ Errore download immagine: {img_res.status_code}")
+    except Exception as e:
+        print(f"❌ Errore generazione: {e}")
+    return None
 
 # --- GESTORE MESSAGGI ---
 @bot_luna.message_handler(content_types=['text', 'voice'])
