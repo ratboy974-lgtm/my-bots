@@ -22,13 +22,20 @@ def genera_foto_luna(testo_utente):
     url = "https://fal.run/fal-ai/flux/schnell" 
     headers = {"Authorization": f"Key {FAL_K}", "Content-Type": "application/json"}
     prompt_puro = testo_utente.lower().replace("foto", "").replace("selfie", "").strip()
+    
+    # Prompt audace
     full_prompt = (f"Extremely realistic photo, 8k, upper body shot of Luna, stunning 24yo italian girl, {prompt_puro}, "
-                   "detailed skin, sheer lace lingerie, seductive pose, bedroom, soft lighting")
+                   "detailed skin, sheer lace lingerie, seductive pose, bedroom, soft lighting, direct gaze")
     
     for tentativo in range(2):
         try:
             print(f"📸 Chiamata Fal.ai Tentativo {tentativo+1}...")
-            payload = {"prompt": full_prompt, "image_size": "portrait_4_5", "sync_mode": True}
+            # Abbiamo cambiato 'portrait_4_5' con 'portrait_4_3' che è lo standard accettato
+            payload = {
+                "prompt": full_prompt, 
+                "image_size": "portrait_4_3", 
+                "sync_mode": True
+            }
             res = requests.post(url, headers=headers, json=payload, timeout=60)
             
             if res.status_code == 200:
@@ -36,13 +43,12 @@ def genera_foto_luna(testo_utente):
                 time.sleep(2)
                 img_res = requests.get(img_url, timeout=30)
                 if img_res.status_code == 200 and len(img_res.content) > 50000:
-                    print("✅ Foto generata e scaricata con successo!")
+                    print("✅ Foto generata e scaricata!")
                     return img_res.content
             else:
-                # QUESTO SCRIVERÀ L'ERRORE NEI LOG DI RAILWAY
-                print(f"❌ Errore Fal.ai (Status {res.status_code}): {res.text}")
+                print(f"❌ Errore Fal.ai ({res.status_code}): {res.text}")
         except Exception as e:
-            print(f"❌ Eccezione durante la foto: {e}")
+            print(f"❌ Eccezione foto: {e}")
         time.sleep(2)
     return None
 
