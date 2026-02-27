@@ -46,14 +46,21 @@ def genera_foto_luna(testo_utente):
     full_prompt = f"Upper body shot of Luna, stunning 24yo italian girl, {prompt_puro}, detailed skin, realistic, 8k masterpiece"
     
     try:
-        res = requests.post(url, headers=headers, json={"prompt": full_prompt}, timeout=30)
+        # Aumentiamo il timeout a 60 secondi per la generazione
+        res = requests.post(url, headers=headers, json={"prompt": full_prompt}, timeout=60)
         if res.status_code == 200:
             img_url = res.json()['images'][0]['url']
-            time.sleep(2)
-            img_res = requests.get(img_url, timeout=20)
-            if img_res.status_code == 200 and len(img_res.content) > 30000:
+            
+            # Aspettiamo un po' di più per essere sicuri che il file sia servito dal CDN
+            time.sleep(3) 
+            
+            # Scarichiamo con un timeout robusto
+            img_res = requests.get(img_url, timeout=40)
+            if img_res.status_code == 200:
+                print(f"📸 Foto generata con successo! Dimensione: {len(img_res.content)} bytes")
                 return img_res.content
-    except: pass
+    except Exception as e:
+        print(f"⚠️ Errore durante la generazione foto: {e}")
     return None
 
 # --- GESTORE MESSAGGI ---
