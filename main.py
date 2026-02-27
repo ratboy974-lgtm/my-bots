@@ -46,6 +46,34 @@ def genera_foto_luna(testo_utente):
     full_prompt = f"Upper body shot of Luna, stunning 24yo italian girl, {prompt_puro}, detailed skin, realistic, 8k masterpiece"
     
     try:
+        # 1. Chiediamo la generazione
+        res = requests.post(url, headers=headers, json={"prompt": full_prompt}, timeout=60)
+        if res.status_code == 200:
+            img_url = res.json()['images'][0]['url']
+            
+            # 2. Piccola pausa per dare tempo al server di stabilizzare il file
+            time.sleep(2)
+            
+            # 3. Scarichiamo il file con stream=True per gestire meglio i dati pesanti
+            with requests.get(img_url, stream=True, timeout=30) as r:
+                r.raise_for_status()
+                buf = io.BytesIO()
+                for chunk in r.iter_content(chunk_size=8192):
+                    buf.write(chunk)
+                
+                img_data = buf.getvalue()
+                
+                # 4. CONTROLLO CRITICO: Se la foto è più piccola di 50KB, è quasi certamente corrotta o nera
+                if len(img_data) > 50000:
+                    print(f"✅ Foto pronta per l'invio: {len(img_data)} bytes")
+                    return img_data
+                else:
+                    print(f"⚠️ Foto troppo piccola ({len(img_data)} bytes), scartata per evitare il nero.")
+    except Exception as e:
+        print(f"❌ Errore fotocamera: {e}")
+    return None
+    
+    try:
         # Aumentiamo il timeout a 60 secondi per la generazione
         res = requests.post(url, headers=headers, json={"prompt": full_prompt}, timeout=60)
         if res.status_code == 200:
