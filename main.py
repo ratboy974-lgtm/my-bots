@@ -100,14 +100,18 @@ def handle_all(m):
 
 # --- AVVIO MULTI-THREAD (PER GUNICORN) ---
 def start_polling():
-    print("⏳ Avvio Polling del Bot...")
+    print("⏳ Pulizia sessioni e avvio Bot...")
     try:
-        bot_luna.remove_webhook()
-        time.sleep(2)
-        print(f"✅ Luna Online: @{bot_luna.get_me().username}")
-        bot_luna.infinity_polling(timeout=25, long_polling_timeout=15)
+        # Il segreto è 'drop_pending_updates=True' per pulire la coda ed evitare il 409
+        bot_luna.remove_webhook(drop_pending_updates=True)
+        time.sleep(3) # Diamo tempo a Telegram di resettarsi
+        me = bot_luna.get_me()
+        print(f"✅ Luna Online: @{me.username}")
+        # infinity_polling con parametri di sicurezza
+        bot_luna.infinity_polling(timeout=20, long_polling_timeout=10, restart_on_change=True)
     except Exception as e:
         print(f"❌ Errore Polling: {e}")
+        time.sleep(5) # Se fallisce, aspetta prima di riprovare
 
 # Il thread parte all'avvio del modulo
 polling_thread = threading.Thread(target=start_polling, daemon=True)
