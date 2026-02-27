@@ -31,37 +31,25 @@ def aggiorna_memoria(cid, ruolo, testo):
 
 # --- MOTORE FOTO (DOWNLOAD ROBUSTO ANTI-FOTO NERE) ---
 def genera_foto_luna(testo_utente):
-    url = "https://fal.run/fal-ai/flux/dev"
+    # Passiamo al modello SCHNELL (più veloce e meno errori di timeout)
+    url = "https://fal.run/fal-ai/flux/schnell" 
     headers = {"Authorization": f"Key {FAL_K}", "Content-Type": "application/json"}
-    
-    # Pulizia del prompt per Flux
-    prompt_puro = testo_utente.lower().replace("foto", "").replace("selfie", "").replace("mandami", "").strip()
-    full_prompt = f"Upper body shot of Luna, stunning 24yo italian girl, {prompt_puro}, detailed skin, realistic, 8k masterpiece"
+    prompt_puro = testo_utente.lower().replace("foto", "").replace("selfie", "").strip()
+    full_prompt = f"Upper body shot of Luna, stunning 24yo italian girl, {prompt_puro}, detailed skin, realistic, 8k"
     
     try:
-        print(f"📸 Generazione in corso per: {prompt_puro}")
-        res = requests.post(url, headers=headers, json={"prompt": full_prompt, "seed": random.randint(1, 999999)}, timeout=60)
+        print(f"📸 Generazione rapida per: {prompt_puro}")
+        res = requests.post(url, headers=headers, json={"prompt": full_prompt}, timeout=30)
         
         if res.status_code == 200:
             img_url = res.json()['images'][0]['url']
-            
-            # Loop di recupero con attesa crescente (totale ~35 secondi max)
-            for i in range(5):
-                wait_time = 3 + (i * 2) 
-                print(f"⏳ Attesa {wait_time}s (tentativo {i+1}/5)...")
-                time.sleep(wait_time)
-                
-                try:
-                    img_res = requests.get(img_url, headers={"User-Agent": "Mozilla/5.0"}, timeout=30)
-                    if img_res.status_code == 200:
-                        peso = len(img_res.content)
-                        if peso > 30000: # Se il file è > 30KB è un'immagine reale
-                            print(f"✅ Foto integra! ({peso} bytes)")
-                            return img_res.content
-                except:
-                    continue
+            time.sleep(2) # Basta un piccolo respiro per lo Schnell
+            img_res = requests.get(img_url, timeout=20)
+            if img_res.status_code == 200:
+                print(f"✅ Foto Schnell scaricata! ({len(img_res.content)} bytes)")
+                return img_res.content
     except Exception as e:
-        print(f"❌ Errore critico foto: {e}")
+        print(f"❌ Errore: {e}")
     return None
 
 # --- FUNZIONI AUDIO (WHISPER & TTS) ---
