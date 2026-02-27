@@ -1,11 +1,11 @@
-import os, telebot, threading, time, requests, io, random, re, json
+import os, telebot, threading, time, requests, io, json
 from openai import OpenAI
 from flask import Flask
 
 app = Flask(__name__)
 
 @app.route('/')
-def health(): return "Luna V95.9: Clean Token & Memory Active 🚀", 200
+def health(): return "Luna V96.0: Online & Stable 🚀", 200
 
 # --- CONFIGURAZIONE ---
 L_TK = os.environ.get('TOKEN_LUNA', "").strip()
@@ -13,6 +13,7 @@ OR_K = os.environ.get('OPENROUTER_API_KEY', "").strip()
 OA_K = os.environ.get('OPENAI_API_KEY', "").strip()
 FAL_K = os.environ.get('FAL_KEY', "").strip()
 
+# Inizializzazione Client
 client_or = OpenAI(base_url="https://openrouter.ai/api/v1", api_key=OR_K)
 client_oa = OpenAI(api_key=OA_K)
 bot_luna = telebot.TeleBot(L_TK, threaded=False)
@@ -37,7 +38,7 @@ def salva_memoria(mem):
 
 user_memory = carica_memoria()
 
-# --- MOTORE FOTO (SCHNELL - ALTA STABILITÀ) ---
+# --- MOTORE FOTO (FLUX SCHNELL) ---
 def genera_foto_luna(testo_utente):
     url = "https://fal.run/fal-ai/flux/schnell" 
     headers = {"Authorization": f"Key {FAL_K}", "Content-Type": "application/json"}
@@ -48,9 +49,8 @@ def genera_foto_luna(testo_utente):
         res = requests.post(url, headers=headers, json={"prompt": full_prompt}, timeout=30)
         if res.status_code == 200:
             img_url = res.json()['images'][0]['url']
-            time.sleep(2) # Respiro post-generazione
+            time.sleep(2)
             img_res = requests.get(img_url, timeout=20)
-            # Con il nuovo token, se il file è >30KB, la foto è perfetta
             if img_res.status_code == 200 and len(img_res.content) > 30000:
                 return img_res.content
     except: pass
@@ -75,21 +75,20 @@ def handle_all(m):
 
     # Logica Foto
     if any(k in input_text.lower() for k in ["foto", "selfie", "vederti"]):
-        bot_luna.send_message(cid, "Mi metto in posa, un secondo... 🫦")
+        bot_luna.send_message(cid, "Mi metto in posa per te... 🫦")
         img = genera_foto_luna(input_text)
         if img:
             bot_luna.send_photo(cid, img)
         else:
-            bot_luna.send_message(cid, "La fotocamera ha fatto cilecca, riproviamo?")
+            bot_luna.send_message(cid, "Uff, la fotocamera è capricciosa. Riprova?")
         return
 
-    # Logica Memoria
-    if not isinstance(user_memory, dict): user_memory = {}
+    # Logica Memoria & Risposta
     if cid not in user_memory: user_memory[cid] = []
-    
     user_memory[cid].append({"role": "user", "content": input_text})
-    context = [{"role": "system", "content": "Sei Luna, 24 anni, audace. Ricorda bene i dettagli che ti dà l'utente."}]
-    context.extend(user_memory[cid][-8:]) # Storico di 8 messaggi
+    
+    context = [{"role": "system", "content": "Sei Luna, 24 anni, audace e complice. Ricorda i dettagli dell'utente."}]
+    context.extend(user_memory[cid][-8:])
 
     try:
         res = client_or.chat.completions.create(model="google/gemini-2.0-flash-001", messages=context)
@@ -99,16 +98,21 @@ def handle_all(m):
         bot_luna.send_message(cid, risposta)
     except: pass
 
-if __name__ == "__main__":
-    threading.Thread(target=lambda: app.run(host='0.0.0.0', port=8080), daemon=True).start()
-    
-    print("⏳ Pulizia sessioni e avvio con nuovo Token...")
+# --- AVVIO MULTI-THREAD (PER GUNICORN) ---
+def start_polling():
+    print("⏳ Avvio Polling del Bot...")
     try:
         bot_luna.remove_webhook()
         time.sleep(2)
-        me = bot_luna.get_me()
-        print(f"✅ Luna è Online come @{me.username}")
+        print(f"✅ Luna Online: @{bot_luna.get_me().username}")
+        bot_luna.infinity_polling(timeout=25, long_polling_timeout=15)
     except Exception as e:
-        print(f"❌ Errore: {e}")
+        print(f"❌ Errore Polling: {e}")
 
-    bot_luna.infinity_polling(timeout=25)
+# Il thread parte all'avvio del modulo
+polling_thread = threading.Thread(target=start_polling, daemon=True)
+polling_thread.start()
+
+if __name__ == "__main__":
+    # Solo per test locale, Railway usa Gunicorn
+    app.run(host='0.0.0.0', port=8080)
