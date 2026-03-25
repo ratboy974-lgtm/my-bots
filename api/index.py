@@ -1,16 +1,13 @@
-import os, telebot, threading, time, requests, io, json, base64
+import os, telebot, requests, io, re
 from openai import OpenAI
-from flask import Flask
+from flask import Flask, request
 
 app = Flask(__name__)
-# Deve diventare così, semplice semplice:
-@app.route('/', methods=['GET', 'POST'])
 
-# --- CONFIGURAZIONE ---
+# --- CONFIGURAZIONE PULITA ---
 L_TK = os.environ.get('TOKEN_LUNA', "").strip()
-OR_K = os.environ.get('OPENROUTER_API_KEY', "").strip()
 OA_K = os.environ.get('OPENAI_API_KEY', "").strip()
-FAL_K = os.environ.get('FAL_KEY', "").strip()
+OR_K = os.environ.get('OPENROUTER_API_KEY', "").strip()
 
 client_or = OpenAI(base_url="https://openrouter.ai/api/v1", api_key=OR_K)
 client_oa = OpenAI(api_key=OA_K)
