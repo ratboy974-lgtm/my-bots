@@ -3,8 +3,8 @@ from openai import OpenAI
 from flask import Flask
 
 app = Flask(__name__)
-@app.route('/')
-def health(): return "Luna V100: Voice Mastery Active 🎤🔥", 200
+# Deve diventare così, semplice semplice:
+@app.route('/', methods=['GET', 'POST'])
 
 # --- CONFIGURAZIONE ---
 L_TK = os.environ.get('TOKEN_LUNA', "").strip()
