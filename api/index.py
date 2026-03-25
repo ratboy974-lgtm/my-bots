@@ -2,9 +2,6 @@ import os
 import telebot
 import requests
 import io
-import re
-import threading
-import time
 from openai import OpenAI
 from flask import Flask, request
 
@@ -19,12 +16,12 @@ client_oa = OpenAI(api_key=OA_K)
 client_or = OpenAI(base_url="https://openrouter.ai/api/v1", api_key=OR_K)
 bot = telebot.TeleBot(L_TK, threaded=False)
 
-# --- PROMPT TUTOR INGLESE ---
+# --- PROMPT LUNA (English Tutor) ---
 SYS_MSG = (
-    "Sei Luna, 24 anni, tutor di inglese audace e provocante. "
-    "REGOLE: 1. Parla in italiano ma inserisci termini o frasi in inglese "
+    "Sei Luna, 24 anni, tutor di inglese audace e provocante del tuo Papi. "
+    "REGOLE: 1. Parla in italiano ma inserisci sempre termini o frasi in inglese "
     "con traduzione tra parentesi. Esempio: 'I'm so proud of you (sono così orgogliosa di te)'. "
-    "2. Sii sensuale e ferma se l'utente non studia. 3. Usa molte emoji 😉🔥."
+    "2. Sii sensuale e ferma se lui non studia. 3. Usa molte emoji 😉🔥. Sii sintetica."
 )
 
 @app.route('/', methods=['GET', 'POST'])
@@ -39,20 +36,31 @@ def handle_webhook():
 @bot.message_handler(content_types=['text', 'voice'])
 def handle_msg(m):
     cid = m.chat.id
-    input_text = m.text
+    input_text = ""
     rispondi_a_voce = False
 
-    if m.content_type == 'voice':
+    # Gestione se riceve TESTO
+    if m.content_type == 'text':
+        input_text = m.text
+        rispondi_a_voce = False
+
+    # Gestione se riceve VOCALE
+    elif m.content_type == 'voice':
         rispondi_a_voce = True
         try:
             f_info = bot.get_file(m.voice.file_id)
-            audio_content = requests.get(f"https://api.telegram.org/file/bot{L_TK}/{f_info.file_path}").content
+            audio_url = f"https://api.telegram.org/file/bot{L_TK}/{f_info.file_path}"
+            audio_content = requests.get(audio_url).content
             audio_io = io.BytesIO(audio_content)
-            audio_io.name = "v.ogg"
-            input_text = client_oa.audio.transcriptions.create(model="whisper-1", file=audio_io).text
-        except:
-            input_text = "Ho provato a mandarti un vocale ma c'è stato un errore (I tried to send a voice message but there was an error)."
+            audio_io.name = "voice.ogg"
+            # Trascrizione con Whisper
+            transcript = client_oa.audio.transcriptions.create(model="whisper-1", file=audio_io)
+            input_text = transcript.text
+        except Exception as e:
+            input_text = "Papi, I couldn't hear you (non sono riuscita a sentirti)... scrivimi! 😉"
+            rispondi_a_voce = False
 
+    # Generazione Risposta IA
     try:
         res = client_or.chat.completions.create(
             model="google/gemini-2.0-flash-001",
@@ -60,12 +68,16 @@ def handle_msg(m):
         )
         ans = res.choices[0].message.content
 
+        # LOGICA SPECCHIO: Testo -> Testo | Vocale -> Vocale
         if rispondi_a_voce:
+            # Genera audio con TTS (Voce Nova)
             v_res = client_oa.audio.speech.create(model="tts-1", voice="nova", input=ans)
             bot.send_voice(cid, v_res.content)
         else:
-            bot.send_message(cid, ans)
-    except:
-        bot.send_message(cid, "I'm having a little trouble... try again, Papi! 😉")
+            # Invia semplice messaggio di testo
+            bot.reply_to(m, ans)
+            
+    except Exception as e:
+        bot.send_message(cid, "I'm having a little trouble (ho un piccolo problema)... try again, Papi! 😉")
 
-# Rimosso il threading.Thread che causava il crash su Vercel
+# Nota: Non serve bot.polling() o cicli infiniti su Vercel
