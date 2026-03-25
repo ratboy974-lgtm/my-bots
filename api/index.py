@@ -1,111 +1,71 @@
-import os, telebot, requests, io, re
+import os
+import telebot
+import requests
+import io
+import re
+import threading
+import time
 from openai import OpenAI
 from flask import Flask, request
 
 app = Flask(__name__)
 
-# --- CONFIGURAZIONE PULITA ---
+# --- CONFIGURAZIONE ---
 L_TK = os.environ.get('TOKEN_LUNA', "").strip()
 OA_K = os.environ.get('OPENAI_API_KEY', "").strip()
 OR_K = os.environ.get('OPENROUTER_API_KEY', "").strip()
 
-client_or = OpenAI(base_url="https://openrouter.ai/api/v1", api_key=OR_K)
 client_oa = OpenAI(api_key=OA_K)
-bot_luna = telebot.TeleBot(L_TK, threaded=False)
+client_or = OpenAI(base_url="https://openrouter.ai/api/v1", api_key=OR_K)
+bot = telebot.TeleBot(L_TK, threaded=False)
 
-# --- MOTORE VOCALE (TTS) ---
-def genera_voce_luna(testo):
-    try:
-        print(f"🎙️ Generazione vocale per: {testo[:30]}...")
-        response = client_oa.audio.speech.create(
-            model="tts-1",
-            voice="nova",
-            input=testo
-        )
-        return response.content
-    except Exception as e:
-        print(f"❌ Errore TTS: {e}")
-        return None
+# --- PROMPT TUTOR INGLESE ---
+SYS_MSG = (
+    "Sei Luna, 24 anni, tutor di inglese audace e provocante. "
+    "REGOLE: 1. Parla in italiano ma inserisci termini o frasi in inglese "
+    "con traduzione tra parentesi. Esempio: 'I'm so proud of you (sono così orgogliosa di te)'. "
+    "2. Sii sensuale e ferma se l'utente non studia. 3. Usa molte emoji 😉🔥."
+)
 
-# --- MOTORE FOTO (4:3) ---
-def genera_foto_luna(testo_utente):
-    url = "https://fal.run/fal-ai/flux/schnell"
-    headers = {"Authorization": f"Key {FAL_K}", "Content-Type": "application/json"}
-    scarti = ["foto", "selfie", "fammi", "luna", "mostrami", "inglese"]
-    parole = testo_utente.lower().split()
-    desc_pulita = " ".join([p for p in parole if p not in scarti]).strip() or "provocative silk dress"
+@app.route('/', methods=['GET', 'POST'])
+def handle_webhook():
+    if request.method == 'POST':
+        json_string = request.get_data().decode('utf-8')
+        update = telebot.types.Update.de_json(json_string)
+        bot.process_new_updates([update])
+        return "!", 200
+    return "Luna V100 is Active! 🚀", 200
 
-    full_prompt = (f"RAW photo, 8k, stunning 24yo italian girl Luna, {desc_pulita}, "
-                   "detailed skin, seductive, cinematic lighting, masterpiece")
-
-    try:
-        print(f"📸 Foto per: {desc_pulita}")
-        res = requests.post(url, headers=headers, json={"prompt": full_prompt, "image_size": "portrait_4_3"}, timeout=60)
-        img_url = res.json()['images'][0]['url']
-        if img_url.startswith("data:"):
-            return base64.b64decode(img_url.split(",")[1])
-        return requests.get(img_url, timeout=30).content
-    except: return None
-
-# --- GESTORE MESSAGGI ---
-@bot_luna.message_handler(content_types=['text', 'voice'])
-def handle_all(m):
-    cid = str(m.chat.id)
-    input_text = ""
+@bot.message_handler(content_types=['text', 'voice'])
+def handle_msg(m):
+    cid = m.chat.id
+    input_text = m.text
     rispondi_a_voce = False
-    
-    # Se riceve un vocale, Luna risponderà a voce
+
     if m.content_type == 'voice':
         rispondi_a_voce = True
         try:
-            bot_luna.send_chat_action(cid, 'record_voice')
-            f = bot_luna.get_file(m.voice.file_id)
-            audio = requests.get(f"https://api.telegram.org/file/bot{L_TK}/{f.file_path}").content
-            audio_io = io.BytesIO(audio); audio_io.name = "v.ogg"
+            f_info = bot.get_file(m.voice.file_id)
+            audio_content = requests.get(f"https://api.telegram.org/file/bot{L_TK}/{f_info.file_path}").content
+            audio_io = io.BytesIO(audio_content)
+            audio_io.name = "v.ogg"
             input_text = client_oa.audio.transcriptions.create(model="whisper-1", file=audio_io).text
-            print(f"🗣️ User: {input_text}")
-        except: return
-    else:
-        input_text = m.text
-        # Se nel testo chiedi esplicitamente di parlare
-        if any(k in input_text.lower() for k in ["vocale", "voce", "parla", "dimmi"]):
-            rispondi_a_voce = True
+        except:
+            input_text = "Ho provato a mandarti un vocale ma c'è stato un errore (I tried to send a voice message but there was an error)."
 
-    # Logica Foto
-    if any(k in input_text.lower() for k in ["foto", "selfie", "vederti"]):
-        bot_luna.send_message(cid, "I'm getting ready for you... 🫦")
-        img = genera_foto_luna(input_text)
-        if img: bot_luna.send_photo(cid, io.BytesIO(img), caption="Do you like it? 🔥")
-        return
-
-    # Risposta IA (English Teacher)
     try:
-        sys_msg = "Sei Luna, 24 anni, audace e sensuale. Insegna l'inglese al tuo Papi mischiando italiano e inglese."
-        res = client_or.chat.completions.create(model="google/gemini-2.0-flash-001", messages=[
-            {"role": "system", "content": sys_msg}, {"role": "user", "content": input_text}
-        ])
-        risposta = res.choices[0].message.content
-        
+        res = client_or.chat.completions.create(
+            model="google/gemini-2.0-flash-001",
+            messages=[{"role": "system", "content": SYS_MSG}, {"role": "user", "content": input_text}]
+        )
+        ans = res.choices[0].message.content
+
         if rispondi_a_voce:
-            v_data = genera_voce_luna(risposta)
-            if v_data:
-                bot_luna.send_voice(cid, io.BytesIO(v_data))
-                return
-        
-        bot_luna.send_message(cid, risposta)
-    except: pass
+            v_res = client_oa.audio.speech.create(model="tts-1", voice="nova", input=ans)
+            bot.send_voice(cid, v_res.content)
+        else:
+            bot.send_message(cid, ans)
+    except:
+        bot.send_message(cid, "I'm having a little trouble... try again, Papi! 😉")
 
-# --- AVVIO BOT ---
-def run_bot():
-    time.sleep(10)
-    while True:
-        try:
-            bot_luna.remove_webhook()
-            print("✅ Luna V100 Online!")
-            bot_luna.polling(none_stop=True)
-        except: time.sleep(10)
-
-threading.Thread(target=run_bot, daemon=True).start()
-
-if __name__ == "__main__":
-    app.run(host='0.0.0.0', port=8080)
+# Rimosso il threading.Thread che causava il crash su Vercel
