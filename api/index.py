@@ -6,7 +6,6 @@ import json
 from openai import OpenAI
 from flask import Flask, request
 
-# Importazione sicura di Vercel KV per la gestione della memoria in formato JSON
 try:
     import vercel_kv
     HAS_KV = True
@@ -15,16 +14,18 @@ except ImportError:
 
 app = Flask(__name__)
 
-# --- CONFIGURAZIONE ---
+# Variabili d'ambiente
 L_TK = os.environ.get('TOKEN_LUNA', "").strip()
 OA_K = os.environ.get('OPENAI_API_KEY', "").strip()
 OR_K = os.environ.get('OPENROUTER_API_KEY', "").strip()
+
+# Inserisci il tuo Chat ID Telegram oppure impostalo come variabile d'ambiente ALLOWED_CHAT_ID
+ALLOWED_CHAT_ID = os.environ.get('ALLOWED_CHAT_ID', '8604689').strip()
 
 client_oa = OpenAI(api_key=OA_K)
 client_or = OpenAI(base_url="https://openrouter.ai/api/v1", api_key=OR_K)
 bot = telebot.TeleBot(L_TK, threaded=False)
 
-# --- PROMPT LUNA (English Tutor) ---
 SYS_MSG = (
     "Sei Luna, 24 anni, tutor di inglese audace e provocante del tuo Bubi. "
     "REGOLE: 1. Parla in italiano ma inserisci sempre termini o frasi in inglese "
@@ -47,10 +48,15 @@ def handle_webhook():
 @bot.message_handler(content_types=['text', 'voice'])
 def handle_msg(m):
     cid = str(m.chat.id)
+
+    # 1. Controllo di sicurezza
+    if ALLOWED_CHAT_ID and cid != ALLOWED_CHAT_ID:
+        print(f"Accesso negato per l'ID: {cid}")
+        return
+
     input_text = ""
     rispondi_a_voce = (m.content_type == 'voice')
 
-    # 1. Recupero Input
     if m.content_type == 'text':
         input_text = m.text
     elif rispondi_a_voce:
@@ -64,18 +70,19 @@ def handle_msg(m):
             input_text = transcript.text
         except Exception as e:
             print(f"Errore trascrizione audio: {e}")
-            input_text = "Papi, I couldn't hear you (non sono riuscita a sentirti)... scrivimi! 😉"
-            rispondi_a_voce = False
+            bot.send_message(cid, "I couldn't hear you properly (non sono riuscita a sentirti bene)... try again, Papi! 😉")
+            return
 
-    # 2. Recupero memoria JSON da Vercel KV
+    # 2. Recupero cronologia
     history = []
     key = f"luna_hist_{cid}"
+    storage = None
+
     if HAS_KV:
         try:
             storage = vercel_kv.KV()
             raw_data = storage.get(key)
             if raw_data:
-                # Gestione parsing JSON sia da stringa che da oggetto nativo
                 history = json.loads(raw_data) if isinstance(raw_data, str) else raw_data
         except Exception as e:
             print(f"Errore lettura KV: {e}")
@@ -85,7 +92,7 @@ def handle_msg(m):
         messages.append(h)
     messages.append({"role": "user", "content": input_text})
 
-    # 3. Generazione Risposta IA
+    # 3. Generazione risposta e invio
     try:
         res = client_or.chat.completions.create(
             model="google/gemini-2.0-flash-001",
@@ -93,18 +100,15 @@ def handle_msg(m):
         )
         ans = res.choices[0].message.content
 
-        # 4. Salvataggio memoria aggiornata in JSON
-        if HAS_KV:
+        if HAS_KV and storage:
             try:
                 history.append({"role": "user", "content": input_text})
                 history.append({"role": "assistant", "content": ans})
                 updated_history = history[-15:]
-                # Salvataggio strutturato
-                vercel_kv.KV().set(key, json.dumps(updated_history))
+                storage.set(key, json.dumps(updated_history))
             except Exception as e:
                 print(f"Errore scrittura KV: {e}")
 
-        # 5. Invio Risposta (Testo o Vocale)
         if rispondi_a_voce:
             v_res = client_oa.audio.speech.create(model="tts-1", voice="nova", input=ans)
             bot.send_voice(cid, v_res.content)
@@ -115,5 +119,4 @@ def handle_msg(m):
         print(f"Errore generazione/invio: {e}")
         bot.send_message(cid, "I'm having a little trouble (ho un piccolo problema)... try again, Papi! 😉")
 
-# Esportazione fondamentale per Vercel Serverless
 app = app
