@@ -49,11 +49,10 @@ def handle_webhook(path=""):
 @bot.message_handler(content_types=['text', 'voice'])
 def handle_msg(m):
     cid = str(m.chat.id)
-
-    # 1. Controllo di sicurezza
-    if ALLOWED_CHAT_ID and cid != ALLOWED_CHAT_ID:
-        print(f"Accesso negato per l'ID: {cid}")
-        return
+    
+    # Rimuovi temporaneamente il blocco di sicurezza e stampa il tuo ID
+    print(f"Chat ID rilevato: {cid}")
+    # ... resto del codice ...
 
     input_text = ""
     rispondi_a_voce = (m.content_type == 'voice')
