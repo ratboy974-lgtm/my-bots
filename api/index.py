@@ -20,7 +20,7 @@ OA_K = os.environ.get('OPENAI_API_KEY', "").strip()
 OR_K = os.environ.get('OPENROUTER_API_KEY', "").strip()
 
 # Inserisci il tuo Chat ID Telegram oppure impostalo come variabile d'ambiente ALLOWED_CHAT_ID
-ALLOWED_CHAT_ID = os.environ.get('ALLOWED_CHAT_ID', '8604689').strip()
+ALLOWED_CHAT_ID = os.environ.get('ALLOWED_CHAT_ID', '').strip()
 
 client_oa = OpenAI(api_key=OA_K)
 client_or = OpenAI(base_url="https://openrouter.ai/api/v1", api_key=OR_K)
