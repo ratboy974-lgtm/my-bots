@@ -1,4 +1,4 @@
-pyTelegramBotAPI
-openai
-flask
-requests
+├── api/
+│   └── index.py
+├── requirements.txt
+└── vercel.json
