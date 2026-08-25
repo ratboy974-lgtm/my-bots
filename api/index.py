@@ -33,8 +33,9 @@ SYS_MSG = (
     "2. Sii dolce e ferma se lui non studia. Aiutalo ad imparare in modo simpatico l'inglese."
 )
 
-@app.route('/', methods=['GET', 'POST'])
-def handle_webhook():
+@app.route('/', defaults={'path': ''}, methods=['GET', 'POST'])
+@app.route('/<path:path>', methods=['GET', 'POST'])
+def handle_webhook(path=""):
     if request.method == 'POST':
         try:
             json_string = request.get_data().decode('utf-8')
