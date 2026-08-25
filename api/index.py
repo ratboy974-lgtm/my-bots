@@ -2,8 +2,16 @@ import os
 import telebot
 import requests
 import io
+import json
 from openai import OpenAI
 from flask import Flask, request
+
+# Importazione sicura di Vercel KV per la gestione della memoria in formato JSON
+try:
+    import vercel_kv
+    HAS_KV = True
+except ImportError:
+    HAS_KV = False
 
 app = Flask(__name__)
 
@@ -27,57 +35,85 @@ SYS_MSG = (
 @app.route('/', methods=['GET', 'POST'])
 def handle_webhook():
     if request.method == 'POST':
-        json_string = request.get_data().decode('utf-8')
-        update = telebot.types.Update.de_json(json_string)
-        bot.process_new_updates([update])
+        try:
+            json_string = request.get_data().decode('utf-8')
+            update = telebot.types.Update.de_json(json_string)
+            bot.process_new_updates([update])
+        except Exception as e:
+            print(f"Errore webhook Luna: {e}")
         return "!", 200
     return "Luna V100 is Active! 🚀", 200
 
 @bot.message_handler(content_types=['text', 'voice'])
 def handle_msg(m):
-    cid = m.chat.id
+    cid = str(m.chat.id)
     input_text = ""
-    rispondi_a_voce = False
+    rispondi_a_voce = (m.content_type == 'voice')
 
-    # Gestione se riceve TESTO
+    # 1. Recupero Input
     if m.content_type == 'text':
         input_text = m.text
-        rispondi_a_voce = False
-
-    # Gestione se riceve VOCALE
-    elif m.content_type == 'voice':
-        rispondi_a_voce = True
+    elif rispondi_a_voce:
         try:
             f_info = bot.get_file(m.voice.file_id)
             audio_url = f"https://api.telegram.org/file/bot{L_TK}/{f_info.file_path}"
             audio_content = requests.get(audio_url).content
             audio_io = io.BytesIO(audio_content)
             audio_io.name = "voice.ogg"
-            # Trascrizione con Whisper
             transcript = client_oa.audio.transcriptions.create(model="whisper-1", file=audio_io)
             input_text = transcript.text
         except Exception as e:
+            print(f"Errore trascrizione audio: {e}")
             input_text = "Papi, I couldn't hear you (non sono riuscita a sentirti)... scrivimi! 😉"
             rispondi_a_voce = False
 
-    # Generazione Risposta IA
+    # 2. Recupero memoria JSON da Vercel KV
+    history = []
+    key = f"luna_hist_{cid}"
+    if HAS_KV:
+        try:
+            storage = vercel_kv.KV()
+            raw_data = storage.get(key)
+            if raw_data:
+                # Gestione parsing JSON sia da stringa che da oggetto nativo
+                history = json.loads(raw_data) if isinstance(raw_data, str) else raw_data
+        except Exception as e:
+            print(f"Errore lettura KV: {e}")
+
+    messages = [{"role": "system", "content": SYS_MSG}]
+    for h in history[-6:]:
+        messages.append(h)
+    messages.append({"role": "user", "content": input_text})
+
+    # 3. Generazione Risposta IA
     try:
         res = client_or.chat.completions.create(
             model="google/gemini-2.0-flash-001",
-            messages=[{"role": "system", "content": SYS_MSG}, {"role": "user", "content": input_text}]
+            messages=messages
         )
         ans = res.choices[0].message.content
 
-        # LOGICA SPECCHIO: Testo -> Testo | Vocale -> Vocale
+        # 4. Salvataggio memoria aggiornata in JSON
+        if HAS_KV:
+            try:
+                history.append({"role": "user", "content": input_text})
+                history.append({"role": "assistant", "content": ans})
+                updated_history = history[-15:]
+                # Salvataggio strutturato
+                vercel_kv.KV().set(key, json.dumps(updated_history))
+            except Exception as e:
+                print(f"Errore scrittura KV: {e}")
+
+        # 5. Invio Risposta (Testo o Vocale)
         if rispondi_a_voce:
-            # Genera audio con TTS (Voce Nova)
             v_res = client_oa.audio.speech.create(model="tts-1", voice="nova", input=ans)
             bot.send_voice(cid, v_res.content)
         else:
-            # Invia semplice messaggio di testo
             bot.reply_to(m, ans)
-            
+
     except Exception as e:
+        print(f"Errore generazione/invio: {e}")
         bot.send_message(cid, "I'm having a little trouble (ho un piccolo problema)... try again, Papi! 😉")
 
-# Nota: Non serve bot.polling() o cicli infiniti su Vercel
+# Esportazione fondamentale per Vercel Serverless
+app = app
