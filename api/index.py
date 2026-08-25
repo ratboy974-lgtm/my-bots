@@ -43,7 +43,7 @@ def handle_msg(m):
 
     try:
         response = client.chat.completions.create(
-            model="google/gemini-2.0-flash",
+            model="google/gemini-flash-1.5",  # Modello corretto e compatibile
             messages=[
                 {
                     "role": "system", 
