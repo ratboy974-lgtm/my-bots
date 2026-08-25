@@ -5,15 +5,17 @@ from openai import OpenAI
 
 app = Flask(__name__)
 
-# Configurazione Token e API Key
+# Configurazione Token e API Key dalle variabili d'ambiente di Vercel
 TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "8796013866:AAHUeQeTetLR5SjhuiA47v_LgPIrauUW1Fw")
 OPENROUTER_API_KEY = os.environ.get("OPENROUTER_API_KEY", "")
 
 # Chat ID autorizzato
 ALLOWED_CHAT_ID = "5118007220"
 
-bot = telebot.TeleBot(TELEGRAM_BOT_TOKEN)
+# Disabilita il multithreading per l'ambiente Serverless di Vercel
+bot = telebot.TeleBot(TELEGRAM_BOT_TOKEN, threaded=False)
 
+# Inizializzazione del client OpenRouter
 client = OpenAI(
     base_url="https://openrouter.ai/api/v1",
     api_key=OPENROUTER_API_KEY,
@@ -24,10 +26,12 @@ def handle_msg(m):
     cid = str(m.chat.id)
     print(f"Chat ID rilevato: {cid}")
     
+    # Controllo di sicurezza sull'ID utente
     if ALLOWED_CHAT_ID and cid != ALLOWED_CHAT_ID:
         print(f"Accesso negato per ID: {cid}")
         return
 
+    # Estrazione del contenuto del messaggio
     user_text = ""
     if m.content_type == 'text':
         user_text = m.text
@@ -54,6 +58,7 @@ def handle_msg(m):
         print(f"Errore generazione/invio: {e}")
         bot.reply_to(m, "Ops! Ho riscontrato un piccolo problema nella generazione della risposta.")
 
+# Rotte Webhook universali per catturare ogni richiesta inoltrata da Vercel
 @app.route('/', defaults={'path': ''}, methods=['GET', 'POST'])
 @app.route('/<path:path>', methods=['GET', 'POST'])
 def handle_webhook(path=""):
