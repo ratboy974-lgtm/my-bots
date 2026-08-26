@@ -98,16 +98,16 @@ def handle_msg(m):
         reply = response.choices[0].message.content
         user_histories[cid].append({"role": "assistant", "content": reply})
 
-        # Sintesi vocale naturale (OpenAI TTS con voce Nova) se l'input era un vocale
+        # Sintesi vocale TTS con formato MP3 compatibile
         if is_voice_input:
             speech_response = client.audio.speech.create(
                 model="tts-1",
-                voice="nova",  # Voce femminile naturale, espressiva ed fluida
+                voice="nova",
                 input=reply,
-                response_format="opus"
+                response_format="mp3"
             )
             voice_buffer = io.BytesIO(speech_response.content)
-            voice_buffer.name = "luna_voice.ogg"
+            voice_buffer.name = "luna_voice.mp3"
             
             bot.send_voice(cid, voice_buffer, reply_to_message_id=m.message_id)
         else:
