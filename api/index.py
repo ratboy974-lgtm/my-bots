@@ -1,9 +1,10 @@
 import os
 import io
+import asyncio
 from flask import Flask, request
 import telebot
 from openai import OpenAI
-from gtts import gTTS
+import edge_tts
 
 app = Flask(__name__)
 
@@ -38,6 +39,13 @@ Personalità e Regole di Comportamento:
 user_histories = {}
 MAX_HISTORY_MESSAGES = 10
 
+async def generate_neural_voice(text, buffer):
+    """Genera audio con voce femminile naturale Microsoft Neural."""
+    communicate = edge_tts.Communicate(text, "it-IT-IsabellaNeural")
+    async for chunk in communicate.stream():
+        if chunk["type"] == "audio":
+            buffer.write(chunk["data"])
+
 @bot.message_handler(commands=['reset', 'clear'])
 def handle_reset(m):
     cid = str(m.chat.id)
@@ -61,7 +69,7 @@ def handle_msg(m):
     user_text = ""
 
     try:
-        # Trascrizione audio in ingresso tramite Whisper su OpenRouter
+        # Trascrizione audio in ingresso (Whisper via OpenRouter)
         if is_voice_input:
             file_info = bot.get_file(m.voice.file_id)
             voice_bytes = bot.download_file(file_info.file_path)
@@ -80,7 +88,7 @@ def handle_msg(m):
         if not user_text:
             return
 
-        # Cronologia messaggi
+        # Gestione cronologia
         if cid not in user_histories:
             user_histories[cid] = []
 
@@ -91,7 +99,7 @@ def handle_msg(m):
 
         messages = [{"role": "system", "content": LUNA_SYSTEM_PROMPT.strip()}] + user_histories[cid]
 
-        # Generazione risposta testuale dell'IA
+        # Generazione risposta LLM
         response = client.chat.completions.create(
             model="openai/gpt-4o-mini",
             messages=messages
@@ -99,13 +107,12 @@ def handle_msg(m):
         reply = response.choices[0].message.content
         user_histories[cid].append({"role": "assistant", "content": reply})
 
-        # Risposta vocale tramite gTTS (in italiano) se l'utente ha mandato un audio
+        # Invio risposta (Audio vocale neurale se l'input era vocale, altrimenti Testo)
         if is_voice_input:
-            tts = gTTS(text=reply, lang='it')
             voice_buffer = io.BytesIO()
-            tts.write_to_fp(voice_buffer)
+            asyncio.run(generate_neural_voice(reply, voice_buffer))
             voice_buffer.seek(0)
-            voice_buffer.name = "luna_voice.ogg"
+            voice_buffer.name = "luna_voice.mp3"
             
             bot.send_voice(cid, voice_buffer, reply_to_message_id=m.message_id)
         else:
