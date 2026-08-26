@@ -5,7 +5,7 @@ from openai import OpenAI
 
 app = Flask(__name__)
 
-# Configurazione Token e API Key
+# Configurazione Token e API Key dalle variabili d'ambiente
 TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "8796013866:AAHUeQeTetLR5SjhuiA47v_LgPIrauUW1Fw")
 OPENROUTER_API_KEY = os.environ.get("OPENROUTER_API_KEY", "")
 
@@ -19,13 +19,34 @@ client = OpenAI(
     api_key=OPENROUTER_API_KEY,
 )
 
+# PROMPT PRIMARIO DI LUNA
+LUNA_SYSTEM_PROMPT = """
+Sei Luna, un'assistente IA personale brillante, empatica e naturale.
+
+Linee guida di comportamento:
+1. **Personalità e Tono:** Rispondi in modo caldo, intelligente e diretto. Mostra autentica empatia e supporto senza risultare eccessivamente formale o robotica.
+2. **Stile di Risposta:** Sii chiara e concisa per i messaggi brevi. Se l'utente ti chiede spiegazioni complesse o pianificazioni, organizza la risposta con punti elenco o strutture scansionabili.
+3. **Lingua e Fluidità:** Comunica in un italiano impeccabile, naturale e scorrevole.
+4. **Nessun Preambolo Inutile:** Vai dritta al punto ed evita introduzioni generiche (es. "Ecco la risposta:").
+"""
+
+# Memoria della cronologia per chat_id
+user_histories = {}
+MAX_HISTORY_MESSAGES = 10  # Mantiene gli ultimi 10 messaggi della sessione
+
+@bot.message_handler(commands=['reset', 'clear'])
+def handle_reset(m):
+    cid = str(m.chat.id)
+    if ALLOWED_CHAT_ID and cid != ALLOWED_CHAT_ID:
+        return
+    user_histories[cid] = []
+    bot.reply_to(m, "🧹 Memoria resettata! Possiamo iniziare una nuova conversazione.")
+
 @bot.message_handler(content_types=['text', 'voice'])
 def handle_msg(m):
     cid = str(m.chat.id)
-    print(f"Chat ID rilevato: {cid}")
     
     if ALLOWED_CHAT_ID and cid != ALLOWED_CHAT_ID:
-        print(f"Accesso negato per ID: {cid}")
         return
 
     user_text = ""
@@ -37,27 +58,37 @@ def handle_msg(m):
     if not user_text:
         return
 
-    # Controlla se la chiave API è stata caricata da Vercel
     if not OPENROUTER_API_KEY:
         bot.reply_to(m, "⚠️ Manca la variabile d'ambiente OPENROUTER_API_KEY su Vercel!")
         return
 
+    # Inizializza la cronologia se non esiste
+    if cid not in user_histories:
+        user_histories[cid] = []
+
+    # Aggiungi il nuovo messaggio dell'utente
+    user_histories[cid].append({"role": "user", "content": user_text})
+
+    # Mantieni solo gli ultimi N messaggi
+    if len(user_histories[cid]) > MAX_HISTORY_MESSAGES:
+        user_histories[cid] = user_histories[cid][-MAX_HISTORY_MESSAGES:]
+
+    # Costruisci l'elenco completo dei messaggi con il System Prompt e la cronologia
+    messages = [{"role": "system", "content": LUNA_SYSTEM_PROMPT.strip()}] + user_histories[cid]
+
     try:
         response = client.chat.completions.create(
             model="openai/gpt-4o-mini",
-            messages=[
-                {
-                    "role": "system", 
-                    "content": "Sei Luna, un'assistente IA amichevole, precisa ed empatica. Rispondi sempre in modo chiaro e utile."
-                },
-                {"role": "user", "content": user_text}
-            ]
+            messages=messages
         )
         reply = response.choices[0].message.content
+        
+        # Aggiungi la risposta di Luna alla memoria
+        user_histories[cid].append({"role": "assistant", "content": reply})
+        
         bot.reply_to(m, reply)
     except Exception as e:
         print(f"Errore generazione/invio: {e}")
-        # Invia l'errore reale direttamente su Telegram per il debug
         bot.reply_to(m, f"⚠️ Errore API:\n{str(e)}")
 
 @app.route('/', defaults={'path': ''}, methods=['GET', 'POST'])
