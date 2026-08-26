@@ -3,6 +3,7 @@ import io
 from flask import Flask, request
 import telebot
 from openai import OpenAI
+from gtts import gTTS
 
 app = Flask(__name__)
 
@@ -60,7 +61,7 @@ def handle_msg(m):
     user_text = ""
 
     try:
-        # Trascrizione audio in ingresso (Whisper)
+        # Trascrizione audio in ingresso tramite Whisper su OpenRouter
         if is_voice_input:
             file_info = bot.get_file(m.voice.file_id)
             voice_bytes = bot.download_file(file_info.file_path)
@@ -90,7 +91,7 @@ def handle_msg(m):
 
         messages = [{"role": "system", "content": LUNA_SYSTEM_PROMPT.strip()}] + user_histories[cid]
 
-        # Risposta testo LLM
+        # Generazione risposta testuale dell'IA
         response = client.chat.completions.create(
             model="openai/gpt-4o-mini",
             messages=messages
@@ -98,16 +99,13 @@ def handle_msg(m):
         reply = response.choices[0].message.content
         user_histories[cid].append({"role": "assistant", "content": reply})
 
-        # Sintesi vocale TTS con formato MP3 compatibile
+        # Risposta vocale tramite gTTS (in italiano) se l'utente ha mandato un audio
         if is_voice_input:
-            speech_response = client.audio.speech.create(
-                model="tts-1",
-                voice="nova",
-                input=reply,
-                response_format="mp3"
-            )
-            voice_buffer = io.BytesIO(speech_response.content)
-            voice_buffer.name = "luna_voice.mp3"
+            tts = gTTS(text=reply, lang='it')
+            voice_buffer = io.BytesIO()
+            tts.write_to_fp(voice_buffer)
+            voice_buffer.seek(0)
+            voice_buffer.name = "luna_voice.ogg"
             
             bot.send_voice(cid, voice_buffer, reply_to_message_id=m.message_id)
         else:
