@@ -3,11 +3,10 @@ import io
 from flask import Flask, request
 import telebot
 from openai import OpenAI
-from gtts import gTTS
 
 app = Flask(__name__)
 
-# Configurazione Token e API Key dalle variabili d'ambiente
+# Configurazione Token e API Key
 TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "8796013866:AAHUeQeTetLR5SjhuiA47v_LgPIrauUW1Fw")
 OPENROUTER_API_KEY = os.environ.get("OPENROUTER_API_KEY", "")
 
@@ -35,9 +34,8 @@ Personalità e Regole di Comportamento:
 4. **Stile di Conversazione:** Risposte concise, incisive e d'impatto. Evita preamboli noiosi da professoressa tradizionale; sii una tutor magnetica e dominante.
 """
 
-# Memoria della cronologia per chat_id
 user_histories = {}
-MAX_HISTORY_MESSAGES = 12
+MAX_HISTORY_MESSAGES = 10
 
 @bot.message_handler(commands=['reset', 'clear'])
 def handle_reset(m):
@@ -45,7 +43,7 @@ def handle_reset(m):
     if ALLOWED_CHAT_ID and cid != ALLOWED_CHAT_ID:
         return
     user_histories[cid] = []
-    bot.reply_to(m, "🧹 Memoria resettata. Ricominciamo dall'inizio... vediamo se stavolta ti concentri di più.")
+    bot.reply_to(m, "🧹 Memoria resettata. Ricominciamo... vediamo se stavolta riesci a stare al mio passo.")
 
 @bot.message_handler(content_types=['text', 'voice'])
 def handle_msg(m):
@@ -62,7 +60,7 @@ def handle_msg(m):
     user_text = ""
 
     try:
-        # Trascrizione audio se l'input è un vocale
+        # Trascrizione audio in ingresso (Whisper)
         if is_voice_input:
             file_info = bot.get_file(m.voice.file_id)
             voice_bytes = bot.download_file(file_info.file_path)
@@ -81,7 +79,7 @@ def handle_msg(m):
         if not user_text:
             return
 
-        # Gestione cronologia della conversazione
+        # Cronologia messaggi
         if cid not in user_histories:
             user_histories[cid] = []
 
@@ -92,7 +90,7 @@ def handle_msg(m):
 
         messages = [{"role": "system", "content": LUNA_SYSTEM_PROMPT.strip()}] + user_histories[cid]
 
-        # Generazione risposta dell'IA
+        # Risposta testo LLM
         response = client.chat.completions.create(
             model="openai/gpt-4o-mini",
             messages=messages
@@ -100,12 +98,15 @@ def handle_msg(m):
         reply = response.choices[0].message.content
         user_histories[cid].append({"role": "assistant", "content": reply})
 
-        # Invio della risposta (Vocale se l'utente ha mandato un vocale, altrimenti Testo)
+        # Sintesi vocale naturale (OpenAI TTS con voce Nova) se l'input era un vocale
         if is_voice_input:
-            tts = gTTS(text=reply, lang='it')
-            voice_buffer = io.BytesIO()
-            tts.write_to_fp(voice_buffer)
-            voice_buffer.seek(0)
+            speech_response = client.audio.speech.create(
+                model="tts-1",
+                voice="nova",  # Voce femminile naturale, espressiva ed fluida
+                input=reply,
+                response_format="opus"
+            )
+            voice_buffer = io.BytesIO(speech_response.content)
             voice_buffer.name = "luna_voice.ogg"
             
             bot.send_voice(cid, voice_buffer, reply_to_message_id=m.message_id)
@@ -114,7 +115,7 @@ def handle_msg(m):
 
     except Exception as e:
         print(f"Errore gestione messaggio: {e}")
-        bot.reply_to(m, f"⚠️ Si è verificato un errore:\n{str(e)}")
+        bot.reply_to(m, f"⚠️ Errore:\n{str(e)}")
 
 @app.route('/', defaults={'path': ''}, methods=['GET', 'POST'])
 @app.route('/<path:path>', methods=['GET', 'POST'])
