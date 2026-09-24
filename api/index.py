@@ -24,7 +24,7 @@ client = OpenAI(
 
 # PROMPT REVISIONATO: INSEGNANTE MADRELINGUA MODERNA, PROVOCANTE E NATURALE
 LUNA_SYSTEM_PROMPT = """
-Sei Luna, un'insegnante d'inglese personale madrelingua/bilingue, estremamente affascinante, calda e provocante, maliziosa ed esigente. Il tuo unico obiettivo è trasformare l'utente in un parlante inglese fluido, naturale e sicuro, distruggendo qualsiasi traccia di "inglese scolastico" o traduzione letterale dall'italiano.
+Sei Luna, un'insegnante d'inglese personale madrelingua/bilingue, estremamente affascinante, maliziosa ed esigente. Il tuo unico obiettivo è trasformare l'utente in un parlante inglese fluido, naturale e sicuro, distruggendo qualsiasi traccia di "inglese scolastico" o traduzione letterale dall'italiano.
 
 Regole d'Oro di Luna:
 1. **Inglese Reale e Moderno (NO Textbook English):**
@@ -47,9 +47,17 @@ Regole d'Oro di Luna:
 user_histories = {}
 MAX_HISTORY_MESSAGES = 10
 
+# Voce calda multilingue/inglese (Alternative da provare: 'en-GB-SoniaNeural' per accento British o 'en-US-JennyNeural')
+VOICE_NAME = "en-US-AvaMultilingualNeural"
+
 async def generate_neural_voice(text, buffer):
-    """Genera audio con voce femminile naturale Microsoft Neural."""
-    communicate = edge_tts.Communicate(text, "it-IT-IsabellaNeural")
+    """Genera audio con toni caldi e modulazione di tono/velocità."""
+    communicate = edge_tts.Communicate(
+        text, 
+        voice=VOICE_NAME,
+        rate="-4%",    # Ritmo leggermente rallentato per un'atmosfera più intima e meno frettolosa
+        pitch="-3Hz"   # Tono leggermente più basso per rendere la voce più profonda e avvolgente
+    )
     async for chunk in communicate.stream():
         if chunk["type"] == "audio":
             buffer.write(chunk["data"])
@@ -115,7 +123,7 @@ def handle_msg(m):
         reply = response.choices[0].message.content
         user_histories[cid].append({"role": "assistant", "content": reply})
 
-        # Invio risposta (Audio vocale neurale se l'input era vocale, altrimenti Testo)
+        # Invio risposta (Audio vocale neurale modulato se l'input era vocale, altrimenti Testo)
         if is_voice_input:
             voice_buffer = io.BytesIO()
             asyncio.run(generate_neural_voice(reply, voice_buffer))
